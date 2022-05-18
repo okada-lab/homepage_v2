@@ -10,8 +10,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-PERMISSION_FILE_PATH = ".github/scripts/permission.json"
-
 
 @dataclass
 class PermissionInfo:
@@ -78,8 +76,8 @@ def is_permitted(pr_info: PRInfo, permission_info: PermissionInfo) -> bool:
     return ok
 
 
-def main():
-    pm_info = load_permission_info(path=PERMISSION_FILE_PATH)
+def main(permission_file_path: str):
+    pm_info = load_permission_info(path=permission_file_path)
     pr_info = receive_pr_info()
     if not is_permitted(pr_info=pr_info, permission_info=pm_info):
         logger.warning("Permission denied. Can't automatically merge.")
@@ -87,4 +85,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(permission_file_path=".github/scripts/permission.json")
