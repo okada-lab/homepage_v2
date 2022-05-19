@@ -1,0 +1,27 @@
+name: Auto PR Merge for Personal Pages
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+jobs:
+  auto-pr-merge:
+    name: "Check PR target (v1.0)"
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.OKADALAB_GITHUB_ACTIONS_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Check PR permission
+        run: gh pr view ${{github.event.pull_request.number}} --json author,files | python .github/scripts/check_permission.py
