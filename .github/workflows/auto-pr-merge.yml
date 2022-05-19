@@ -13,7 +13,7 @@ jobs:
     name: "Auto PR merge"
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.OKADALAB_GITHUB_ACTIONS_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.OKADALAB_GITHUB_ACTIONS_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
