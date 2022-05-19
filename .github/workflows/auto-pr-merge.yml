@@ -1,16 +1,14 @@
 name: Auto PR Merge for Personal Pages
 
 on:
-  pull_request:
+  pull_request_target:
     types:
-      - opened
-      - reopened
-      - synchronize
-      - ready_for_review
+      - labeled
 
 jobs:
   auto-pr-merge:
-    name: "Auto PR merge (v1.1)"
+    name: "Auto PR merge (v1.2)"
+    if: contains(github.event.pull_request.labels.*.name, 'request-merge')
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.OKADALAB_GITHUB_ACTIONS_TOKEN }}
