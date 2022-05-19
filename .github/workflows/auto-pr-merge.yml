@@ -10,7 +10,7 @@ on:
 
 jobs:
   auto-pr-merge:
-    name: "Auto PR merge (v1.0)"
+    name: "Auto PR merge (v1.1)"
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.OKADALAB_GITHUB_ACTIONS_TOKEN }}
