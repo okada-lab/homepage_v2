@@ -57,6 +57,24 @@ html, body {
 	width:100%;
 }
 
+#index-page .index-fallback {
+	position: absolute;
+	left: 50%;
+	bottom: 32px;
+	transform: translateX(-50%);
+	width: min(90%, 720px);
+	margin: 0;
+	color: #24364d;
+	font-size: 14px;
+	line-height: 1.8;
+	text-align: center;
+}
+
+#index-page .index-fallback a {
+	color: #13448f;
+	font-weight: 700;
+}
+
 strong, em {
 	font-weight: normal;
 	font-style: normal;
@@ -698,6 +716,7 @@ section h3 {
 	.member > div > dl .web {
     font-size: 7px;
 	}
+
 }
 
 

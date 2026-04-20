@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /hidden.html
+Disallow: /header_nav.html
+Disallow: /footer.html
+Disallow: /construction.html
+Disallow: /test/
+
+Sitemap: https://mns.k.u-tokyo.ac.jp/sitemap.xml
