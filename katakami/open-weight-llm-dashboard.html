@@ -1,0 +1,1727 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>オープンウェイトLLMの現在地 — 知能指標 × GPUサーバー実機価格</title>
+<style>
+  :root {
+    --surface-1:#fcfcfb; --page:#f9f9f7;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,0.10);
+    --accent:#eb6834; --closed:#898781;
+    --p0:#2a9d78; --p1:#73a942; --p2:#d39b28; --p3:#e76f51; --p4:#b34b6f; --p5:#6c4aa5;
+    --chip-bg:#ffffff; --chip-on:#0b0b0b; --chip-on-text:#fcfcfb;
+    --shadow:0 1px 2px rgba(11,11,11,.06), 0 8px 24px rgba(11,11,11,.05);
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --surface-1:#1a1a19; --page:#0d0d0d;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+    --accent:#d95926; --closed:#898781;
+    --p0:#55c89b; --p1:#9bc75a; --p2:#efbd48; --p3:#f08a6f; --p4:#dc7393; --p5:#ab8cdb;
+    --chip-bg:#232322; --chip-on:#f2f2ef; --chip-on-text:#111110;
+    --shadow:none;
+    color-scheme: dark;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; padding:0; }
+  body {
+    background:var(--page); color:var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+    font-size:14px; line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1280px; margin:0 auto; padding:28px 20px 72px; }
+
+  header.top { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; justify-content:space-between; margin-bottom:22px; }
+  h1 { font-size:22px; line-height:1.3; margin:0 0 6px; letter-spacing:-.01em; }
+  .sub { color:var(--text-secondary); font-size:13px; margin:0; max-width:64ch; }
+  .themebtn {
+    background:var(--chip-bg); color:var(--text-primary); border:1px solid var(--border);
+    border-radius:999px; padding:7px 14px; font:inherit; font-size:12.5px; cursor:pointer; white-space:nowrap;
+  }
+  .themebtn:hover { border-color:var(--axis); }
+
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:0 0 22px; }
+  .tile { background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow); }
+  .tile .k { font-size:11.5px; letter-spacing:.02em; color:var(--text-secondary); margin-bottom:4px; }
+  .tile .v { font-size:26px; font-weight:600; letter-spacing:-.02em; line-height:1.1; }
+  .tile .n { font-size:11.5px; color:var(--muted); margin-top:3px; }
+
+  .controls {
+    background:var(--surface-1); border:1px solid var(--border); border-radius:12px;
+    padding:16px; margin-bottom:16px; box-shadow:var(--shadow);
+    display:flex; flex-wrap:wrap; gap:20px 28px; align-items:flex-start;
+  }
+  .cgroup { display:flex; flex-direction:column; gap:7px; }
+  .clabel { font-size:11.5px; font-weight:600; letter-spacing:.02em; color:var(--text-secondary); }
+  select {
+    font:inherit; font-size:13px; padding:6px 10px; border-radius:8px;
+    border:1px solid var(--border); background:var(--chip-bg); color:var(--text-primary);
+  }
+  .segs { display:flex; gap:0; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:var(--chip-bg); }
+  .segs button {
+    font:inherit; font-size:12.5px; padding:6px 12px; border:0; background:transparent;
+    color:var(--text-secondary); cursor:pointer; border-right:1px solid var(--border);
+  }
+  .segs button:last-child { border-right:0; }
+  .segs button[aria-pressed="true"] { background:var(--chip-on); color:var(--chip-on-text); font-weight:600; }
+
+  .rangebox { min-width:290px; flex:1 1 320px; }
+  .rangehead { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .rangeval { font-size:13px; font-variant-numeric:tabular-nums; font-weight:600; }
+  .dual { position:relative; height:30px; margin-top:6px; }
+  .dual .track { position:absolute; top:13px; left:0; right:0; height:4px; border-radius:2px; background:var(--grid); }
+  .dual .sel { position:absolute; top:13px; height:4px; border-radius:2px; background:var(--p2); }
+  .dual input[type=range] {
+    position:absolute; top:0; left:0; width:100%; height:30px; margin:0;
+    -webkit-appearance:none; appearance:none; background:transparent; pointer-events:none;
+  }
+  .dual input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none; pointer-events:auto; width:18px; height:18px; border-radius:50%;
+    background:var(--surface-1); border:2px solid var(--p2); cursor:grab; box-shadow:0 1px 3px rgba(0,0,0,.2);
+  }
+  .dual input[type=range]::-moz-range-thumb {
+    pointer-events:auto; width:16px; height:16px; border-radius:50%;
+    background:var(--surface-1); border:2px solid var(--p2); cursor:grab;
+  }
+  .dual input[type=range]:focus-visible::-webkit-slider-thumb { outline:2px solid var(--accent); outline-offset:2px; }
+  .presets { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .presets button {
+    font:inherit; font-size:11.5px; padding:3px 9px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--border); background:var(--chip-bg); color:var(--text-secondary);
+  }
+  .presets button:hover { border-color:var(--axis); color:var(--text-primary); }
+
+  .checks { display:flex; flex-direction:column; gap:5px; }
+  .checks label { display:flex; gap:7px; align-items:center; font-size:12.5px; color:var(--text-secondary); cursor:pointer; }
+  .checks input { accent-color:var(--p2); }
+
+  .chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:14px; }
+  .chip {
+    font:inherit; font-size:12.5px; padding:5px 11px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--border); background:var(--chip-bg); color:var(--text-secondary);
+  }
+  .chip[aria-pressed="true"] { background:var(--chip-on); color:var(--chip-on-text); border-color:var(--chip-on); font-weight:600; }
+  .chip .ct { opacity:.65; font-variant-numeric:tabular-nums; margin-left:5px; font-weight:400; }
+  .chip.util { border-style:dashed; }
+
+  .card { background:var(--surface-1); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); padding:16px 16px 10px; }
+  .cardhead { display:flex; flex-wrap:wrap; gap:10px 18px; justify-content:space-between; align-items:baseline; margin-bottom:4px; }
+  .cardtitle { font-size:14.5px; font-weight:600; margin:0; }
+  .cardnote { font-size:11.5px; color:var(--muted); margin:0; }
+
+  .legend { display:flex; flex-wrap:wrap; gap:14px 22px; align-items:center; padding:10px 2px 2px; font-size:12px; color:var(--text-secondary); }
+  .lg { display:flex; align-items:center; gap:7px; }
+  .ramp { display:flex; align-items:center; gap:0; }
+  .ramp .sw { width:26px; height:11px; }
+  .ramp .sw:first-child { border-radius:3px 0 0 3px; }
+  .ramp .sw:last-child { border-radius:0 3px 3px 0; }
+  .ramplabels { display:flex; gap:0; font-size:10px; color:var(--muted); }
+  .ramplabels span { width:72px; text-align:center; }
+  .ramp .sw { width:72px; }
+  .legend svg { flex:0 0 auto; width:16px; height:16px; }
+  #chartslot svg { display:block; width:100%; height:auto; overflow:visible; }
+  .plot-dot { cursor:pointer; }
+  .plot-dot:focus { outline:none; }
+
+  #tip {
+    position:fixed; z-index:60; pointer-events:none; opacity:0; transform:translate(-50%,-100%);
+    background:var(--surface-1); color:var(--text-primary);
+    border:1px solid var(--border); border-radius:10px; padding:10px 12px;
+    box-shadow:0 4px 20px rgba(0,0,0,.18); max-width:330px; font-size:12.5px;
+    transition:opacity .08s linear;
+  }
+  #tip.on { opacity:1; }
+  #tip .tname { font-weight:600; font-size:13px; margin-bottom:6px; line-height:1.35; }
+  #tip .trow { display:flex; justify-content:space-between; gap:14px; padding:1.5px 0; }
+  #tip .tk { color:var(--text-secondary); }
+  #tip .tv { font-weight:600; font-variant-numeric:tabular-nums; }
+  #tip .tnote { margin-top:7px; padding-top:7px; border-top:1px solid var(--border); color:var(--text-secondary); font-size:11.5px; line-height:1.5; }
+  #tip .tkey { display:inline-block; width:14px; height:2px; vertical-align:middle; margin-right:6px; border-radius:1px; }
+
+  .facets { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
+  .facet { border:1px solid var(--border); border-radius:10px; padding:8px 8px 4px; }
+  .facet h4 { margin:0 0 2px; font-size:12.5px; font-weight:600; }
+  .facet .fm { margin:0 0 2px; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
+
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--grid); vertical-align:top; }
+  th { font-size:11.5px; color:var(--text-secondary); font-weight:600; position:sticky; top:0; background:var(--surface-1); cursor:pointer; white-space:nowrap; }
+  th:hover { color:var(--text-primary); }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .tablewrap { max-height:460px; overflow:auto; margin-top:8px; }
+  .moe { font-size:10.5px; padding:1px 6px; border-radius:999px; border:1px solid var(--border); color:var(--text-secondary); }
+
+  details.notes { margin-top:20px; background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+  details.notes summary { cursor:pointer; font-weight:600; font-size:13.5px; }
+  details.notes h3 { font-size:13px; margin:16px 0 6px; }
+  details.notes p, details.notes li { font-size:12.5px; color:var(--text-secondary); line-height:1.65; }
+  details.notes ul { margin:6px 0; padding-left:20px; }
+  details.notes a { color:var(--p2); }
+  :root[data-theme="dark"] details.notes a { color:var(--p3); }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  .empty { padding:40px 0; text-align:center; color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>オープンウェイトLLMの現在地</h1>
+      <p class="sub">現行の主要オープンウェイトLLMについて、モデルサイズと Artificial Analysis Intelligence Index <strong>v4.3</strong>を比較。色はリリース時期ではなく、4-bit量子化でローカル配備するGPUサーバー実機の概算価格帯です。<span id="nfams"></span>ファミリー、<span id="nmodels"></span>件（うち<span id="nunscored"></span>件はAA未計測）。データ確認日 2026-09-18。</p>
+    </div>
+    <button class="themebtn" id="themebtn" type="button">ダークモード</button>
+  </header>
+
+  <section class="stats" id="stats"></section>
+
+  <section class="controls" aria-label="表示条件">
+    <div class="cgroup rangebox">
+      <div class="rangehead">
+        <span class="clabel">リリース時期</span>
+        <span class="rangeval" id="rangeval"></span>
+      </div>
+      <div class="dual" id="dual">
+        <div class="track"></div><div class="sel" id="selbar"></div>
+        <input type="range" id="rmin" aria-label="開始時期">
+        <input type="range" id="rmax" aria-label="終了時期">
+      </div>
+      <div class="presets">
+        <button type="button" data-preset="all">全期間</button>
+        <button type="button" data-preset="24">2024年以降</button>
+        <button type="button" data-preset="25">2025年以降</button>
+        <button type="button" data-preset="26">2026年以降</button>
+        <button type="button" data-preset="26h2">直近6か月</button>
+      </div>
+    </div>
+
+    <div class="cgroup">
+      <span class="clabel">横軸</span>
+      <select id="xmode">
+        <option value="geomean">幾何平均パラメタ √(総×活性)</option>
+        <option value="total">総パラメタ</option>
+        <option value="active">活性パラメタ</option>
+        <option value="date">リリース時期</option>
+      </select>
+    </div>
+
+    <div class="cgroup">
+      <span class="clabel">表示</span>
+      <div class="segs" role="group" aria-label="ビュー切替">
+        <button type="button" data-view="scatter" aria-pressed="true">散布図</button>
+        <button type="button" data-view="facets" aria-pressed="false">ファミリー別</button>
+        <button type="button" data-view="nejumi" aria-pressed="false" hidden>日本語 (Nejumi 2026-07)</button>
+        <button type="button" data-view="table" aria-pressed="false">表</button>
+      </div>
+    </div>
+
+    <div class="cgroup checks">
+      <span class="clabel">オプション</span>
+      <label><input type="checkbox" id="optClosed" checked> クローズドモデルを参照表示</label>
+      <label><input type="checkbox" id="optPareto" checked> 効率フロンティアと注釈ラベル</label>
+      <label><input type="checkbox" id="optLog" checked> 横軸を対数スケール</label>
+    </div>
+  </section>
+
+  <div class="chips" id="chips" aria-label="ファミリーで絞り込み"></div>
+
+  <section class="card" id="chartcard">
+    <div class="cardhead">
+      <h2 class="cardtitle" id="charttitle">モデルサイズ × 知能指標</h2>
+      <p class="cardnote" id="chartnote"></p>
+    </div>
+    <div id="chartslot"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="card" id="tablecard" style="display:none">
+    <div class="cardhead">
+      <h2 class="cardtitle">データ表</h2>
+      <p class="cardnote">列見出しをクリックで並べ替え。上部のフィルタが反映されます。</p>
+    </div>
+    <div class="tablewrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+  </section>
+
+  <details class="notes">
+    <summary>価格色分け・指標・収録範囲の読み方（必読）</summary>
+
+    <h3>今回の更新</h3>
+    <p>Artificial Analysis の現行指標は <strong>Intelligence Index v4.3</strong>です。旧版の v4.1.1 と v4.3 は評価セットが異なり、数値を直接比較できません。この版では旧スコアを混在させず、AAの「Current」表示で確認できる各総パラメータ帯の上位チェックポイントを中心に再構成しました。同一チェックポイントに複数の reasoning effort がある場合は、原則として最も高い現行スコアだけを残しています。これは全369件の履歴データベースではなく、<strong>2026年9月18日時点の現行候補を見比べるダッシュボード</strong>です。</p>
+
+    <h3>色＝GPUサーバー実機の購入価格帯</h3>
+    <p>色はモデルの公開時期ではありません。各モデルの<strong>総パラメータ</strong>から、4-bit weight-only量子化、バッチ1、短〜中程度の文脈での推論を仮定し、必要VRAMを <strong>総パラメータ数×0.55 GB＋12 GB</strong>で概算しています。0.55 GB/Bは4-bit重み本体と量子化メタデータ、12 GBはランタイム・KVキャッシュ等の最低限の余裕です。長文脈、高バッチ、FP8/BF16、マルチモーダル入力では必要量が大幅に増えます。</p>
+    <ul>
+      <li><strong>～100万円級</strong>: 32 GB級GPU×1のワークステーション。</li>
+      <li><strong>～300万円級</strong>: 96 GB級プロGPU×1。</li>
+      <li><strong>～600万円級</strong>: 96 GB級×2。</li>
+      <li><strong>～1,200万円級</strong>: 96 GB級×4。</li>
+      <li><strong>～2,500万円級</strong>: 96 GB級×8。</li>
+      <li><strong>3,000万円超</strong>: 8 GPUを超える複数ノード構成。</li>
+    </ul>
+    <p>価格は2026年9月の市況を丸めた<strong>桁感</strong>で、保守、ネットワーク、ストレージ、消費税、設置工事は含みません。RTX 5090は32 GB、RTX PRO 6000 Blackwellは96 GBを価格の基準にしています。MoEは計算時の活性パラメータが少なくても、通常は全エキスパートの重みをGPU側に保持するため、色分けには活性値ではなく総パラメータを使います。CPU/RAMへのオフロードなら安価な構成でも起動できますが、ここでは実用的なGPU常駐配備とは分けています。</p>
+
+    <h3>横軸と形</h3>
+    <p>横軸の既定値は √(総パラメータ×活性パラメータ) です。これは保存容量に効く総パラメータと、1トークンあたりの計算量に効く活性パラメータの対数中点です。実機価格は総パラメータ、生成速度は活性パラメータの影響を強く受けるため、軸切替で両方を確認してください。丸はDense、ひし形はMoEです。</p>
+
+    <h3>日本製モデルとクローズド参照</h3>
+    <p>llm-jp と PLaMo は AA v4.3 のスコアが確認できないため、横位置と価格帯だけを「AA未計測」帯に表示します。別ベンチからAA値を外挿していません。クローズドモデルはパラメータ非公開なので価格色分けの対象外で、灰色の参照点です。</p>
+
+    <h3>主な出典</h3>
+    <ul>
+      <li><a href="https://artificialanalysis.ai/models/open-source" target="_blank" rel="noopener">Artificial Analysis — Open Source Models（v4.3、現行スコアと総/活性パラメータ）</a></li>
+      <li><a href="https://artificialanalysis.ai/methodology/intelligence-benchmarking" target="_blank" rel="noopener">Artificial Analysis — Intelligence Benchmarking Methodology v4.3</a></li>
+      <li><a href="https://www.nvidia.com/en-us/geforce/graphics-cards/50-series/rtx-5090/" target="_blank" rel="noopener">NVIDIA — GeForce RTX 5090（32 GB）</a></li>
+      <li><a href="https://www.tomshardware.com/pc-components/gpus/nvidia-raises-rtx-pro-6000-blackwell-gpu-pricing-to-usd13-250-55-percent-increase-over-msrp-in-a-years-time" target="_blank" rel="noopener">Tom's Hardware — RTX PRO 6000 Blackwell 96 GBの2026年価格</a></li>
+      <li><a href="https://www.tomshardware.com/pc-components/gpus/nvidias-rtx-5090-vanishes-from-online-retail-in-the-us-third-party-sellers-now-demand-as-much-as-usd9-500-for-nvidias-fastest-gpu" target="_blank" rel="noopener">Tom's Hardware — RTX 5090の2026年9月実売市況</a></li>
+    </ul>
+  </details>
+
+  <details class="notes outdated" hidden>
+    <summary>指標・データの読み方と注意点（必読）</summary>
+
+    <h3>収録の方針</h3>
+    <p>このダッシュボードは <strong>Artificial Analysis が現行指標でスコアを公開しているオープンウェイトモデルを、原則すべて写したもの</strong>です（49系列・279件）。API専用モデルは参照点として別枠に、パラメタが公開されていてもAAに指標がないモデルは軸下の帯に置いています。「主要ファミリーだけ」という当初の方針から変えたのは、<strong>小型帯が空っぽだと「小さくても賢い」という図の主題そのものが成立しない</strong>ためです。現在、実効サイズ4B以下でスコアがあるモデルは35件あります。</p>
+
+    <h3>横軸の定義</h3>
+    <p>MoEモデルのサイズは <strong>√(総パラメタ × 活性パラメタ)</strong>（幾何平均）を既定値としています。これは「記憶容量に効く総パラメタ」と「1トークンあたりの計算量に効く活性パラメタ」の対数中点にあたり、片方だけを見ると疎なMoE（例: 活性3BのQwen3.5 35B A3B）と密モデルが不当に並んでしまう問題を緩和します。密モデルでは総＝活性なので値は総パラメタと一致します。より厳密に比較したい場合は横軸を「総パラメタ」「活性パラメタ」に切り替えて両端を確認してください（幾何平均はこの2つの中間に必ず入ります）。</p>
+
+    <h3>Intelligence Index のバージョン問題（最重要）</h3>
+    <p>Artificial Analysis の Intelligence Index は <strong>v1 → v2（2025-02）→ v3（2025-09）→ v4.0（2026-01）→ v4.1（2026-06）→ v4.1.1（2026-08）</strong> と繰り返し改訂されており、<strong>バージョン間でスコアは比較できません</strong>。飽和したベンチを外し難しいエージェント系ベンチを入れるたびに全体が圧縮されるため、同じモデルの数値が大きく動きます（例: Kimi K2 Thinking は公開時 v3 で 67、現行 v4.1.1 では 33。DeepSeek V3.2 は v3 で 66 → 現行 32）。</p>
+    <p>本ダッシュボードは <strong>すべての点を現行 v4.1.1 に統一</strong>しています。AA が旧モデルを現行指標で再採点した値を使っているため軸として整合しますが、その代償として2つの注意があります。</p>
+    <ul>
+      <li>2023〜2024年のモデルは 1〜9 に強く圧縮され、当時の相対的な優秀さ（Mixtral が GPT-3.5 級だった等）は表現されません。低い側の点の差は過小評価して読むべきです。</li>
+      <li>古い・非推奨モデルの多くは AA が「推定値（independent evaluation forthcoming）」と注記した値で、実測の再走ではありません。Llama 3.1 405B、DeepSeek LLM 67B、Mixtral 系、Grok 系、MiniMax M1、Tiny Aya などが該当します。表とツールチップで確認できるものには「AA推定」バッジを付けています。</li>
+      <li>改訂の影響が一目で分かる実例：<strong>MiniCPM5-1B は公開時（v4.0、2026-05）に 17.9 と発表されましたが、現行 v4.1.1 では 12 です。MiniCPM-V 4.6 1.3B も 13 → 4。Qwen3.5 の小型4種は公開時記事で 9B=32 / 4B=27 / 2B=16 / 0.8B=9 と発表されましたが、現行では 22 / 20 / 7 / 5 です。</strong>モデルは1文字も変わっていません。v4.1がエージェント系ベンチの比重を34%へ引き上げた結果、小型モデルほど大きく下方に圧縮されました。<strong>AAの公開時記事の数値と本ダッシュボードの数値が食い違うのは、これが理由です。</strong></li>
+    </ul>
+
+    <h3>ページ表記が旧版のままのモデル</h3>
+    <p>次のモデルのAAページは、指数のバージョン表記が v4.1.1 ではなく <strong>v4.1 または v4.0</strong> のまま描画されます：Llama 2 Chat 13B、DeepSeek R1 Distill Llama 8B、DeepSeek-V2.5 (Dec '24)、Granite 4.0 H 350M、Phi-4 Multimodal、Olmo 3 7B Think、Molmo2-8B、Ring-1T、Ling-flash-2.0、Ring-flash-2.0、Ling-mini-2.0、Step3 VL 10B、LFM2 1.2B、LFM2.5-VL-1.6B。AAは改訂時に全モデルを再採点するので<strong>表記の遅れである可能性が高い</strong>と判断して収録しましたが、断定はできません。いずれも低スコア帯なので図の主題には影響しませんが、個別に数値を引用する際は元ページを確認してください。</p>
+
+    <h3>同一モデルの複数バリアントについて</h3>
+    <p>AAは同じチェックポイントを推論／非推論、あるいは effort（xhigh / high / medium / low）ごとに別行として掲載しています。本ダッシュボードは<strong>1チェックポイント＝1点</strong>とし、<strong>推論版・最上位effortの値</strong>を採用しています。両方を載せると点が倍になり、しかもサイズが同一なので縦に重なって読めなくなるためです。参考として、Qwen3.8 27B は xhigh 52 / medium 44 / low 43 / 非推論 35、Qwen3.5 397B A17B は推論 34 / 非推論 33、Qwen3.5 27B は推論 35 / 非推論 30 と、<strong>同じ重みでも設定次第で10ポイント以上動きます</strong>。この図の点は「そのモデルが出せる上限」に近い値だと理解してください。</p>
+    <p>また AA のモデルページ・プロバイダページ・比較ページ間で同一モデルの数値が食い違う例が複数あり（Kimi K2 0905 が 31 と 24、DeepSeek V3 0324 が 16 と 22 など）、その場合はバージョン表記が現行に一致する値を採用しました。</p>
+
+    <h3>Upstage・llm-jp・PLaMo の扱い（重要）</h3>
+    <p><strong>Artificial Analysis は日本の開発元を一社も収録していません。</strong>llm-jp（NII）と PLaMo（Preferred Networks / Preferred Elements）はもちろん、Sakana・楽天・SB Intuitions・ストックマーク・富士通・NTT・ソニーも全て未計測です（一方で韓国勢 — Upstage・LG AI Research・SK Telecom・Motif — は収録されています）。AA の<a href="https://artificialanalysis.ai/models/multilingual/japanese" target="_blank" rel="noopener">日本語ページ</a>も Global-MMLU-Lite (Japanese) を約110モデルに走らせているだけで、日本製モデルは1件も入っていません。</p>
+    <p>そのため llm-jp と PLaMo は<strong>縦軸の値が存在しません</strong>。パラメタ数（横軸）は公表されているので、正しい横位置のまま<strong>プロット領域の下の「AA未計測」帯</strong>に中空の印で置いています。別ベンチから回帰してAAスコアを推定する、という処理は行っていません（v4.1.1はエージェント系ベンチを34%重み付けしており、日本語MT-Bench等からの外挿は誤差が大きすぎます）。代わりに「日本語 (Nejumi)」ビューを用意しました — <a href="https://nejumi.ai/" target="_blank" rel="noopener">Nejumi Leaderboard 4</a>（W&B Japan）は llm-jp を Qwen3.5・Gemma 4・DeepSeek V4 と同一軸で採点している唯一の公開指標です。そこでは llm-jp-4 32B-A3B が 0.6679 で、Gemma 4 31B（0.8077）や Qwen3.5 27B（0.8049）より明確に下、Swallow版 gpt-oss-120B（0.6914）や RakutenAI-3.0（0.6761）と同水準にあります。<strong>PLaMo は Nejumi 4 にも見つけられませんでした</strong>ため、公開されている比較可能なスコアがありません。</p>
+    <p>その他の注意点：</p>
+    <ul>
+      <li><strong>Upstage</strong>: オープンウェイトは SOLAR-10.7B（2023-12）、Solar Pro preview 22B（2024-09、MIT）、Solar Open 100B（2025-12）、Solar Open2 250B（2026-07）。AAの実測値があるのは <strong>Solar Open2 250B = 37</strong> のみで、<strong>Solar Open 100B = 15 はAAが「推定値（independent evaluation forthcoming）」と明記</strong>しているため表とツールチップに「AA推定」と表示しています。Solar Pro 3 / Pro 4（42）はAPI専用でクローズド側。ライセンスは Apache 2.0 ではなく <strong>Upstage Solar License</strong>（商用可・派生物に "Solar" 接頭辞と帰属表示を要求）です。</li>
+      <li><strong>PLaMo Community License はオープンソースライセンスではありません</strong>。非商用は無償、商用は登録制かつ<strong>年商10億円未満の事業者に限定</strong>され、それ以上は別途有償契約が必要です。制約は派生物と第三者提供の出力にも及びます。PLaMo-100B は研究用（非商用）、PLaMo-13B のみ Apache 2.0 です。</li>
+      <li><strong>PLaMo 2 31B と PLaMo Prime 系（2.0 / 2.1 / 3.0 Prime）は重み非公開</strong>のため収録していません（31B は Sakura AI Engine のAPI経由で承認制提供）。同様に llm-jp-3-172b は Apache 2.0 ではなく<strong>NIIの個別許諾を要する ToU</strong>です。</li>
+      <li>Nejumi 4 のスコアはW&Bのダッシュボードが対話的描画のため、<a href="https://blog.qualiteg.com/llm-ranking-2026/" target="_blank" rel="noopener">Qualitegによる2026-07-10時点の抽出</a>を経由しています。GLP（一般言語性能）とALT（アライメント）の総合で、JMMLU-Pro・JHumanEval・M-IFEval・BFCL・SWE-bench verified・ARC-AGI・HLE・HalluLens などを含みます。<strong>AA Intelligence Index とは別物なので、2つのビューの数値を直接足したり引いたりはできません。</strong></li>
+    </ul>
+
+    <h3>クローズドモデルの扱い</h3>
+    <p>参照用のクローズドモデルはパラメタ数が非公開のため、パラメタ軸では<strong>プロット領域の右外側の帯</strong>に縦軸の値だけで並べています（横位置は意味を持ちません）。横軸を「リリース時期」にすると通常の点として表示されます。破線はその時点で観測できるクローズド最高スコアです。なお <strong>GLM-5.3（60）は現時点で重み未公開</strong>のためクローズド側に入れていますが、AA は重み公開後にオープン首位に並ぶと述べています。オープン／クローズドの区分は時間で変わる点に注意してください。2025年以前のクローズド前線は v4.1.1 基準の公開値が乏しく、点が疎になっています。</p>
+
+    <h3>色分けについて</h3>
+    <p>点の色は<strong>リリース時期</strong>（連続量なので単一色相の明度ランプ）で、形は<strong>密モデル／MoE</strong>を表します。12ファミリーを色で塗り分けていないのは意図的です — 色覚多様性を考慮した散布図で全ペアが識別可能な色数は3程度が上限で、12色に増やすと「見分けられる気がするだけ」の図になります。ファミリーの比較は上部のチップ（クリックで絞り込み、ホバーで強調）と「ファミリー別」ビュー（小分割）で行ってください。</p>
+
+    <h3>フィルタと軸スケール</h3>
+    <p>横軸・縦軸のスケールは<strong>データセット全体から一度だけ決めて固定</strong>しています。リリース時期スライダーやファミリーの絞り込みを操作しても軸の目盛りは動かず、点だけが増減するので、期間を狭めた図と全期間の図を直接重ねて比較できます（縦軸は常に 0–66、横軸は軸の種類ごとに全モデルの最小〜最大）。クローズド帯とAA未計測帯も、該当モデルが0件でも領域を確保したままにしています。</p>
+
+    <h3>収録範囲と欠落</h3>
+    <p><strong>AAのリーダーボード表示は「非推奨（deprecated）」「旧世代」のモデルを隠します。</strong>個別のモデルページには現行 v4.1.1 のスコアが生きているのに、一覧をいくらスクロールしても出てきません。AAの一覧が見せるのは174行ですが、モデルページの総数は753件以上あります。この図の初版はQwenが20件、その次の版でも小型帯が空でしたが、いずれも実態ではなく<strong>一覧ページを信用したことによるデータの穴</strong>でした。最終的にサイズ別ページ（tiny/small/medium/large）とスラッグ直撃で個別ページを1件ずつ当たり、49系列279件まで埋めています。それでもAAの全モデルページを網羅したとは言えないので、<strong>「AAにあるのに図にない」モデルはまだ存在しうる</strong>と考えてください。</p>
+    <p>ライセンス区分の判定も一覧では誤りやすく、実際に次の訂正が必要でした：<strong>GLM-5.3（60）は重み未公開でオープンではありません</strong>（前の版では「重み公開後にオープン首位」と書いていましたが、Z AI は 5.3 でクローズドに転じました）。同様に Solar Pro 3 / Pro 4、Magistral Medium 1.2、DeepSeek V4 Flash Vision、Muse Spark 1.2、GLM 5V Turbo、Qwen3.8 Max はいずれもAPI専用で、参照点側に置いています。逆に <strong>Upstage の 10.7B は AA 表記が「Solar Mini」で、指数6（推定値）を持っていました</strong>（前の版では未計測として軸下に置いていました）。</p>
+    <ul>
+      <li><strong>Qwen</strong>: 36件。Qwen3.5 は 397B-A17B / 122B-A10B / 35B-A3B / 27B / 9B / 4B / 2B / 0.8B の8サイズ全部、Qwen3 は 4B〜235B の全密サイズとMoE、加えて Coder / VL / Omni 系。<strong>Qwen3.5 0.8B（0.873B、指数5）がAAが採点した史上最小のQwen</strong>で、Qwen3 の 0.6B / 1.7B と素の Qwen2.5 7B/14B/32B、Qwen2 7B、Qwen1.5 の110B未満はAA未計測のため入っていません。<strong>Qwen3.7 は Max / Plus のみでオープンウェイトが一切なく</strong>（クローズド側に収録）、Qwen3.6・Qwen3.8 にも小型版はありません。</li>
+      <li><strong>Gemma 1 / Gemma 2</strong>: AA に Intelligence Index のスコアが存在しない（旧 Quality Index のみ）ため散布図から除外。Gemma 3 270M（指数2）は未収録。</li>
+      <li><strong>DeepSeek-V2 / V2.5、Kimi k1.5、Command A Reasoning、Nemotron-4 340B</strong>: AA が未計測、または重み非公開のため除外。</li>
+      <li><strong>Llama 4 Behemoth、Llama 5、DeepSeek R2</strong>: 2026-08時点で未公開・未存在。</li>
+      <li><strong>Grok</strong>: xAI のオープンウェイトは Grok-1（2024-03）と Grok 2 の重み公開（2025-08）の2件のみ。Grok 3 以降の重みは未公開。</li>
+      <li><strong>Mistral Medium 3 / 3.1、Magistral Medium</strong>: API専用のためクローズド側。Medium 3.5（2026-04）で重み公開に方針転換。</li>
+      <li><strong>新規に加えた33系列</strong>：Muse（Meta。Llamaとは別ラインなので独立させました）・Granite（IBM、12件で0.34B〜32B）・Phi（Microsoft、4件・<strong>全件が推定値</strong>）・LFM（Liquid AI、8件）・Ling / Ring（Ant Group）・Olmo（AI2、データまで全公開）・EXAONE（LG）・Hermes（Nous Research。Llama/Mistral派生ですがAAは別扱い）・MiMo（Xiaomi）・Inkling（Thinking Machines）・Hy（Tencent、旧Hunyuan系）・Jamba（AI21）・K2（MBZUAI）・LongCat（Meituan）・G9v3（AI9Stars）・Tri（Trillion Labs）・Sarvam（インド）・Apriel（ServiceNow）・Apertus（スイス）・A.X（SKテレコム）・Motif・Nex・Step（StepFun）・Seed（ByteDance）・Trinity（Arcee）・HyperNova（Multiverse）・HyperCLOVA X（Naver）・INTELLECT（Prime Intellect）・Nanbeige・Falcon（TII）・ERNIE（Baidu）・Reka・Arctic（Snowflake）。</li>
+      <li><strong>指標が「Quality Index」時代のままでスコアがないため除外</strong>：Gemma 2 9B / 27B、Pixtral 12B、Codestral、Ministral 8B（2024）、Mistral NeMo、Aya Expanse 8B、DeepSeek-OCR、Cogito v2.1。ページは存在しますが Intelligence Index の値がありません。</li>
+      <li><strong>AAに存在しないことを確認したもの</strong>：Yi / 01.AI、InternLM / Intern-S、Skywork、Baichuan、dots.llm、SmolLM、Zamba、DBRX、Teuken、EuroLLM、Salamandra、Sarashina、Sakana、RakutenAI、Stockmark、Kanana、Writer Palmyra、Phi-4-reasoning 系、Phi-4-reasoning-vision-15B（2026-03公開・MITですがAA未収録）、MedGemma / ShieldGemma、Command R7B、Aya Vision、Nemotron-4 340B、Kimi k1.5、MiniMax-Text-01。<strong>Microsoft MAI の7モデルは全てAPI専用</strong>です。</li>
+      <li>Leanstral（Lean 4特化）、MiniMax H3（画像・動画生成）、VoxCPM（TTS）、各社の埋め込み・ガードレール・OCR専用モデルなどドメイン特化系は Intelligence Index の対象外のため除外。</li>
+      <li><strong>llm-jp-4-VL 9B beta</strong>（2026-04）、<strong>PLaMo 2.1 VL</strong> などの視覚言語版、および llm-jp-3 の 150M〜7.2B の小型サイズは、系列の代表点に絞るため省いています。llm-jp-5 / llm-jp-4-172b は2026-08時点で未公開。</li>
+      <li><strong>MiniCPM</strong>: AAが収録しているのは <strong>MiniCPM5-1B（推論／非推論の2行、ともに12）と MiniCPM-V 4.6 1.3B（4）の3件のみで、いずれも推定値</strong>です。MiniCPM4/4.1/SALA や V 4.5・o 4.5 はAAに存在しません（`/models/minicpm4-8b` 等は404）。MiniCPM5 は<strong>1Bのみで、4B・8B・MoE版は2026-08時点で存在しません</strong>（系列最大の2026年テキストモデルは SALA 9B）。同スコアで完全に重なるのを避けるため、MiniCPM5-1B は推論版1行のみ掲載しています。<strong>MiniCPM-MoE-8x2B の総パラメタはOpenBMB未公表</strong>で、広く引用される13.6Bを暫定値として使っています（活性4Bは公式値）。MiniCPM-V / o 系は視覚言語モデルですが、系列の旗艦なので収録しました（AAのテキスト指数は本来これらを対象にしていません）。VoxCPM（TTS）・MiniCPM-Embedding・UltraRAG・AgentCPM-Explore（4Bエージェント特化）は Intelligence Index の対象外のため除外。なお <strong>AA Openness Index では MiniCPM5-1B が 83.33 点</strong>と高評価です。</li>
+    </ul>
+
+    <h3>出典</h3>
+    <ul>
+      <li><a href="https://artificialanalysis.ai/models/open-source" target="_blank" rel="noopener">Artificial Analysis — Open-Weights Models</a></li>
+      <li><a href="https://artificialanalysis.ai/leaderboards/models" target="_blank" rel="noopener">Artificial Analysis — LLM Leaderboard</a></li>
+      <li><a href="https://artificialanalysis.ai/methodology/intelligence-benchmarking" target="_blank" rel="noopener">Artificial Analysis — Intelligence Benchmarking Methodology</a></li>
+      <li><a href="https://artificialanalysis.ai/articles/artificial-analysis-intelligence-index-v4-1-1" target="_blank" rel="noopener">Intelligence Index v4.1.1 の告知</a> / <a href="https://artificialanalysis.ai/articles/artificial-analysis-intelligence-index-v4-1" target="_blank" rel="noopener">v4.1 の告知</a></li>
+      <li><a href="https://artificialanalysis.ai/trends" target="_blank" rel="noopener">Artificial Analysis — Trends（オープン vs プロプライエタリ）</a> / <a href="https://artificialanalysis.ai/changelog" target="_blank" rel="noopener">Changelog</a></li>
+      <li><a href="https://nejumi.ai/" target="_blank" rel="noopener">Nejumi Leaderboard 4（W&B Japan）</a> / <a href="https://blog.qualiteg.com/llm-ranking-2026/" target="_blank" rel="noopener">Qualiteg「日本語LLMランキング2026」</a></li>
+      <li><a href="https://www.upstage.ai/blog/en/solar-open-2" target="_blank" rel="noopener">Upstage — Solar Open 2</a> / <a href="https://huggingface.co/upstage/Solar-Open2-250B" target="_blank" rel="noopener">HF: upstage/Solar-Open2-250B</a> / <a href="https://arxiv.org/html/2312.15166" target="_blank" rel="noopener">SOLAR 10.7B（Depth-Up-Scaling）論文</a></li>
+      <li><a href="https://llm-jp.nii.ac.jp/" target="_blank" rel="noopener">LLM-jp（NII 大規模言語モデル研究開発センター）</a> / <a href="https://www.nii.ac.jp/en/news/release/2026/0403.html" target="_blank" rel="noopener">LLM-jp-4 公開リリース</a> / <a href="https://huggingface.co/llm-jp" target="_blank" rel="noopener">HF: llm-jp</a></li>
+      <li><a href="https://tech.preferred.jp/ja/blog/plamo_3_120b_distillation_cpt/" target="_blank" rel="noopener">PFN — PLaMo 3 120B/31B 蒸留</a> / <a href="https://arxiv.org/html/2509.04897v1" target="_blank" rel="noopener">PLaMo 2 テクニカルレポート</a> / <a href="https://tech.preferred.jp/ja/blog/plamo-community-license/" target="_blank" rel="noopener">PLaMo Community License</a> / <a href="https://huggingface.co/pfnet" target="_blank" rel="noopener">HF: pfnet</a></li>
+      <li><a href="https://artificialanalysis.ai/articles/minicpm5-1b-the-leading-1b-open-weights-model" target="_blank" rel="noopener">AA — MiniCPM5-1B</a> / <a href="https://artificialanalysis.ai/articles/openbmb-launches-minicpm-v-4-6-1-3b-instruct" target="_blank" rel="noopener">AA — MiniCPM-V 4.6 1.3B</a> / <a href="https://artificialanalysis.ai/evaluations/artificial-analysis-openness-index" target="_blank" rel="noopener">AA Openness Index</a> / <a href="https://github.com/OpenBMB/MiniCPM" target="_blank" rel="noopener">GitHub: OpenBMB/MiniCPM</a> / <a href="https://arxiv.org/html/2404.06395v1" target="_blank" rel="noopener">MiniCPM（WSD）論文</a> / <a href="https://arxiv.org/abs/2602.11761" target="_blank" rel="noopener">MiniCPM-SALA 論文</a></li>
+      <li>パラメタ数・ライセンス・公開日は各モデルの公式モデルカード（Hugging Face）および開発元ブログで裏取り。</li>
+    </ul>
+  </details>
+
+  <p class="sr" id="live" role="status" aria-live="polite"></p>
+</div>
+
+<div id="tip" role="tooltip"></div>
+
+<script>
+// Open-weight LLM dataset — Artificial Analysis Intelligence Index v4.1.1 (2026-08-06)
+// Data pulled 2026-08-27. 279 open-weight models across 49 series + 32 proprietary reference points.
+// Fields: [name, family, developer, releaseYM, totalB, activeB, aaIndex, license, note]
+// activeB === totalB  =>  dense model
+const OPEN_RAW = [
+["Llama 65B","Llama","Meta","2023-02",65,65,2,"LLaMA Research License","初代LLaMA。研究用公開後に重みが流出し、オープンウェイト生態系の起点となった。"],
+["Llama 2 Chat 70B","Llama","Meta","2023-07",70,70,3,"Llama 2 Community","商用利用が初めて許諾されたLlama。文脈長は4k。"],
+["Llama 3 Instruct 70B","Llama","Meta","2024-04",70,70,3,"Llama 3 Community","15Tトークン学習。公開時の文脈長は8k。"],
+["Llama 3.1 Instruct 8B","Llama","Meta","2024-07",8,8,7,"Llama 3.1 Community","最もダウンロードされたLlamaサイズ。128k文脈。"],
+["Llama 3.1 Instruct 70B","Llama","Meta","2024-07",70,70,7,"Llama 3.1 Community","2024〜25年のオープンモデル定番。128k文脈。"],
+["Llama 3.1 Instruct 405B","Llama","Meta","2024-07",405,405,8,"Llama 3.1 Community","2024年最大の密モデル。AAは現行スコアを推定値と明記。"],
+["Llama 3.2 Instruct 3B","Llama","Meta","2024-09",3,3,4,"Llama 3.2 Community","オンデバイス向け。1B/11B/90Bと同時公開。"],
+["Llama 3.2 Instruct 90B Vision","Llama","Meta","2024-09",90,90,6,"Llama 3.2 Community","初のマルチモーダルLlama。3.1 70Bに視覚アダプタを追加。"],
+["Llama 3.3 Instruct 70B","Llama","Meta","2024-12",70,70,9,"Llama 3.3 Community","事後学習のみの更新で405B相当の品質を70Bで達成。"],
+["Llama 4 Scout","Llama","Meta","2025-04",109,17,10,"Llama 4 Community","初のLlama MoE。10Mトークン文脈を謳ったが実用性に批判。"],
+["Llama 4 Maverick","Llama","Meta","2025-04",402,17,14,"Llama 4 Community","Llama最後のフラッグシップ。LMArenaのベンチ問題で評判を落とす。"],
+
+["Gemma 3 27B Instruct","Gemma","Google","2025-03",27.4,27.4,7,"Gemma Terms","マルチモーダル・128k文脈。単一GPU運用を狙った密モデル。"],
+["Gemma 3n E4B Instruct","Gemma","Google","2025-06",8.39,4,1,"Gemma Terms","オンデバイス向けMatFormer構造。音声・画像入力に対応。"],
+["Gemma 4 E2B (Reasoning)","Gemma","Google","2026-04",5.1,2.3,10,"Apache 2.0","Gemma 4最小構成。活性2.3Bでフルマルチモーダル。"],
+["Gemma 4 E4B (Reasoning)","Gemma","Google","2026-04",8,4.5,12,"Apache 2.0","オンデバイス階層。テキスト・画像・音声・動画入力、128k文脈。"],
+["Gemma 4 26B A4B (Reasoning)","Gemma","Google","2026-04",25.2,3.8,26,"Apache 2.0","初のGemma MoE。活性1/8で31B密版に迫る。"],
+["Gemma 4 31B (Reasoning)","Gemma","Google","2026-04",30.7,30.7,30,"Apache 2.0","Gemmaフラッグシップ。制約的なGemma TermsからApache 2.0へ転換。"],
+["Gemma 4 12B (Reasoning)","Gemma","Google","2026-06",12,12,22,"Apache 2.0","初回公開の2か月後に追加された中間サイズ。"],
+
+["Qwen1.5 Chat 110B","Qwen","Alibaba","2024-04",110,110,4,"Tongyi Qianwen","Qwen1.5最大モデル。文脈長は32k。"],
+["Qwen2 Instruct 72B","Qwen","Alibaba","2024-06",72,72,6,"Tongyi Qianwen","文脈長を131kへ拡張。テキスト専用。"],
+["Qwen2.5 Coder Instruct 7B","Qwen","Alibaba","2024-09",7.62,7.62,4,"Apache 2.0","AAが指数を出した中で最小の旧世代Qwen。131k文脈のコード特化。",true],
+["Qwen2.5 Instruct 72B","Qwen","Alibaba","2024-09",72,72,9,"Qwen License","Qwen2.5のオープン旗艦。現在はAAで非推奨扱い。"],
+["Qwen2.5 Coder Instruct 32B","Qwen","Alibaba","2024-11",32,32,7,"Apache 2.0","GPT-4o級のコード生成を謳った密32B。当時のオープンコーダーの基準線。",true],
+["QwQ 32B-Preview","Qwen","Alibaba","2024-11",32.8,32.8,9,"Apache 2.0","中国勢初の公開推論モデル。言語混在などプレビュー品質。"],
+["QwQ-32B","Qwen","Alibaba","2025-03",32.8,32.8,13,"Apache 2.0","密32Bで遥かに大きいモデルに匹敵し話題を呼んだ。"],
+
+["Qwen3 4B (Reasoning)","Qwen","Alibaba","2025-04",4.02,4.02,8,"Apache 2.0","Qwen3の最小公開サイズ（0.6B/1.7BはAA未計測）。",true],
+["Qwen3 8B (Reasoning)","Qwen","Alibaba","2025-04",8.19,8.19,8,"Apache 2.0","文脈32k。ローカル実行の定番サイズ。"],
+["Qwen3 14B (Reasoning)","Qwen","Alibaba","2025-04",14.8,14.8,10,"Apache 2.0","密14Bで30B A3B MoEを上回った。"],
+["Qwen3 30B A3B (Reasoning)","Qwen","Alibaba","2025-04",30.5,3.3,9,"Apache 2.0","ノートPC級MoE。活性率約11%でローカル推論が安価に。",true],
+["Qwen3 32B (Reasoning)","Qwen","Alibaba","2025-04",32.8,32.8,11,"Apache 2.0","Qwen3の密最大。同世代の235B MoEとの差は2ポイント。"],
+["Qwen3 235B A22B (Reasoning)","Qwen","Alibaba","2025-04",235,22,13,"Apache 2.0","初のQwen旗艦MoE。単一チェックポイントで思考モード切替。"],
+["Qwen3 Coder 480B A35B Instruct","Qwen","Alibaba","2025-07",480,35,18,"Apache 2.0","当時最大のオープンコーダー。テキスト指数でも18。",true],
+["Qwen3 30B A3B 2507","Qwen","Alibaba","2025-07",30.5,3.3,9,"Apache 2.0","262k文脈。ハイブリッド思考を廃し専用版へ分離。"],
+["Qwen3 235B A22B 2507 (Reasoning)","Qwen","Alibaba","2025-07",235,22,20,"Apache 2.0","2025年中盤のオープン最高知能。260k文脈。"],
+["Qwen3 Omni 30B A3B (Reasoning)","Qwen","Alibaba","2025-09",35.3,3,10,"Apache 2.0","テキスト・画像・音声・動画入力のオムニモーダル。",true],
+["Qwen3 Next 80B A3B","Qwen","Alibaba","2025-09",80,3,14,"Apache 2.0","アーキテクチャ先行版。ハイブリッド注意＋活性率3.7%の超疎構成。"],
+["Qwen3 VL 235B A22B Instruct","Qwen","Alibaba","2025-09",235,22,14,"Apache 2.0","VL系の旗艦。AAは視覚モデルにもテキスト指数を走らせている。",true],
+["Qwen3 VL 4B Instruct","Qwen","Alibaba","2025-10",4.44,4.44,4,"Apache 2.0","VL系最小。後継はQwen3.5 4B。",true],
+["Qwen3 VL 8B Instruct","Qwen","Alibaba","2025-10",8.77,8.77,8,"Apache 2.0","密8BのVL。テキスト単体でもQwen3 8B同等。",true],
+["Qwen3 VL 30B A3B Instruct","Qwen","Alibaba","2025-10",30,3,10,"Apache 2.0","活性3BのVL MoE。後継はQwen3.5 35B A3B。",true],
+["Qwen3 VL 32B Instruct","Qwen","Alibaba","2025-10",33.4,33.4,11,"Apache 2.0","密32BのVL。後継はQwen3.5 27B。",true],
+["Qwen3 Coder Next","Qwen","Alibaba","2026-02",79.7,3,21,"Apache 2.0","活性3Bのコーダー。480B A35B版から+3で、サイズは1/6。"],
+
+["Qwen3.5 397B A17B (Reasoning)","Qwen","Alibaba","2026-02",397,17,34,"Apache 2.0","オープン旗艦。Qwen3より疎（活性4.3%）で98.7 tok/s。"],
+["Qwen3.5 122B A10B (Reasoning)","Qwen","Alibaba","2026-02",125,10,33,"Apache 2.0","単一ノード運用狙いの中型MoE。262k文脈・ネイティブ視覚。出力96Mトークンと冗長。"],
+["Qwen3.5 35B A3B (Reasoning)","Qwen","Alibaba","2026-02",36,3,30,"Apache 2.0","活性3Bで指数30に到達。",true],
+["Qwen3.5 27B (Reasoning)","Qwen","Alibaba","2026-02",27.8,27.8,35,"Apache 2.0","密27Bが397B旗艦を上回る、際立った効率性の実例。",true],
+["Qwen3.5 0.8B (Reasoning)","Qwen","Alibaba","2026-03",0.873,0.873,5,"Apache 2.0","AAが指数を出した中で史上最小のQwen。8サイズ同時公開の下端。",true],
+["Qwen3.5 2B (Reasoning)","Qwen","Alibaba","2026-03",2.27,2.27,7,"Apache 2.0","4bit量子化で2GB未満。同サイズ帯で最上位だが4Bとの差は13ポイントと大きい。",true],
+["Qwen3.5 4B (Reasoning)","Qwen","Alibaba","2026-03",4.66,4.66,20,"Apache 2.0","スマホ級で2025年の旗艦MoEに匹敵。ただしAA-Omniscience −57で幻覚率80%。",true],
+["Qwen3.5 9B (Reasoning)","Qwen","Alibaba","2026-03",9.65,9.65,22,"Apache 2.0","同サイズ帯の中央値9に対し22。評価に210Mトークンを消費する冗長さ。"],
+
+["Qwen3.6 35B A3B (Reasoning)","Qwen","Alibaba","2026-04",36,3,32,"Apache 2.0","Qwen3.5 35B A3Bの更新版。同一パラメタで+2。"],
+["Qwen3.6 27B (Reasoning)","Qwen","Alibaba","2026-04",27.8,27.8,38,"Apache 2.0","公開時点で150B未満のオープン最高。56.5 tok/sと遅め。"],
+
+["Qwen3.8 27B (xhigh)","Qwen","Alibaba","2026-08",27,27,52,"Apache 2.0","密27Bで52。medium 44 / low 43 / 非推論 35 と効果設定で大きく変わる。"],
+["Qwen3.8 2.4T A95B","Qwen","Alibaba","2026-08",2400,95,58,"Qwen3.8-Max License","史上最大のオープンウェイト（2.4T）。AAのオープン首位。Apache 2.0ではない点に注意。"],
+
+["GLM-4.5-Air","GLM","Z AI","2025-07",106,12,17,"MIT","355B旗艦の3分の1サイズで差は3ポイント。"],
+["GLM-4.5 (Reasoning)","GLM","Z AI","2025-07",355,32,20,"MIT","Zhipu初のMITライセンス旗艦MoE。エージェント型コーディング潮流の起点。"],
+["GLM-4.6 (Reasoning)","GLM","Z AI","2025-09",357,32,29,"MIT","文脈200kへ拡張。2か月でGLM-4.5比+9。"],
+["GLM-4.7 (Reasoning)","GLM","Z AI","2025-12",357,32,34,"MIT","半年で3度目の357B/32B更新。伸びは事後学習由来。"],
+["GLM-4.7-Flash (Reasoning)","GLM","Z AI","2026-01",31.2,3,23,"MIT","活性3Bで357BのGLM-4.6非推論版に匹敵。"],
+["GLM-5 (Reasoning)","GLM","Z AI","2026-02",744,40,41,"MIT","DeepSeek Sparse Attention採用。28.5Tトークン学習で幻覚を56pt削減。当時の指数でオープン初の50到達。"],
+["GLM-5.2 (max)","GLM","Z AI","2026-06",753,40,53,"MIT","MITライセンス最強のオープンモデル。1M文脈。"],
+
+["DeepSeek LLM 67B Chat","DeepSeek","DeepSeek","2023-11",67,67,3,"DeepSeek License","DeepSeek初の旗艦。密67B・文脈4kでMoE時代以前。"],
+["DeepSeek V3","DeepSeek","DeepSeek","2024-12",671,37,14,"DeepSeek License","学習費用約560万ドル。フロンティア級オープンを一気に安価にした。"],
+["DeepSeek R1","DeepSeek","DeepSeek","2025-01",685,37,19,"MIT","o1級の初のオープン推論モデル。2025年1月の市場急落を引き起こす。"],
+["DeepSeek V3 0324","DeepSeek","DeepSeek","2025-03",671,37,16,"MIT","MITへ再ライセンスし当時最強のオープン非推論モデルに。"],
+["DeepSeek R1 0528","DeepSeek","DeepSeek","2025-05",685,37,20,"MIT","DeepSeekを世界2位のAIラボ、オープン首位に押し上げた。"],
+["DeepSeek V3.1 (Reasoning)","DeepSeek","DeepSeek","2025-08",685,37,21,"MIT","V3とR1をハイブリッド思考モデルへ統合。R系列を終了。"],
+["DeepSeek V3.1 Terminus","DeepSeek","DeepSeek","2025-09",685,37,22,"MIT","出力トークンをほぼ増やさずV3.1比+4。"],
+["DeepSeek V3.2 Exp (Reasoning)","DeepSeek","DeepSeek","2025-09",685,37,26,"MIT","DeepSeek Sparse Attentionを実験導入し長文脈APIを半額以下に。"],
+["DeepSeek V3.2 (Reasoning)","DeepSeek","DeepSeek","2025-12",685,37,32,"MIT","Sparse Attentionを正式版化。値上げなしで+9。"],
+["DeepSeek V4 Flash (max)","DeepSeek","DeepSeek","2026-04",284,13,42,"MIT","$0.14/$0.28 per Mトークンの小型版。幻覚率は96%と高い。"],
+["DeepSeek V4 Pro (max)","DeepSeek","DeepSeek","2026-04",1600,49,45,"MIT","V3以来の新サイズ。1M文脈だが幻覚率94%。"],
+["DeepSeek V4 Flash 0731 (max)","DeepSeek","DeepSeek","2026-07",284,13,52,"MIT","4月版から+10。非常に冗長で評価に210Mトークンを消費。"],
+["DeepSeek V4 Pro 0813 (max)","DeepSeek","DeepSeek","2026-08",1600,49,53,"MIT","2026年8月時点の最新DeepSeek。全1,075モデル中3位。"],
+
+["Kimi K2","Kimi","Moonshot AI","2025-07",1000,32,20,"Modified MIT","当時最大のオープンウェイト。同クラス非推論比で約3倍の出力トークン。"],
+["Kimi K2 0905","Kimi","Moonshot AI","2025-09",1000,32,24,"Modified MIT","文脈を256kへ倍増しコーディングを強化。出力は簡潔。"],
+["Kimi K2 Thinking","Kimi","Moonshot AI","2025-11",1000,32,33,"Modified MIT","当時のオープン史上最高。GPT-5に次ぐ2位でネイティブINT4を採用。"],
+["Kimi K2.5 (Reasoning)","Kimi","Moonshot AI","2026-01",1000,32,36,"Modified MIT","初のネイティブ画像・動画入力Kimi。"],
+["Kimi K2.6","Kimi","Moonshot AI","2026-04",1000,32,45,"Modified MIT","オープン初の総合4位。クローズド最前線との差は3ポイント。"],
+["Kimi K2.7 Code","Kimi","Moonshot AI","2026-06",1000,32,43,"Modified MIT","コーディング特化枝。Kimi Code Bench v2でK2.6比+21.8%。"],
+["Kimi K3 (max)","Kimi","Moonshot AI","2026-07",2800,104,60,"Kimi K3 License","世界初の3T級オープン。896エキスパート中16活性、MXFP4重み。ライセンスは後退。"],
+
+["Mistral 7B Instruct","Mistral","Mistral AI","2023-09",7,7,2,"Apache 2.0","Mistralのデビュー作。Llama 2 13Bを上回り寛容ライセンス潮流を作った。"],
+["Mixtral 8x7B Instruct","Mistral","Mistral AI","2023-12",46.7,12.9,2,"Apache 2.0","初めて広く普及した疎MoE。約1/4の実行計算でGPT-3.5級。"],
+["Mixtral 8x22B Instruct","Mistral","Mistral AI","2024-04",141,39,4,"Apache 2.0","マグネットリンクで公開。当時最大のApache 2.0 MoE、64k文脈。"],
+["Mistral Large 2 (Jul '24)","Mistral","Mistral AI","2024-07",123,123,7,"Mistral Research","重みは入手可だが研究用途限定。旗艦のApache離脱点。"],
+["Mistral Large 2 (Nov '24)","Mistral","Mistral AI","2024-11",123,123,9,"Mistral Research","長文脈と関数呼び出しを改善した更新版。"],
+["Mistral Small 3","Mistral","Mistral AI","2025-01",24,24,7,"Apache 2.0","Small階層をApache 2.0へ回帰。低遅延重視の密24B。"],
+["Mistral Small 3.1","Mistral","Mistral AI","2025-03",24,24,15,"Apache 2.0","視覚と128k文脈を追加。AA上ではSmall系最高スコア。"],
+["Devstral Small (May '25)","Mistral","Mistral AI","2025-05",23.6,23.6,12,"Apache 2.0","初代Devstral。Small 3.1ベースのエージェント型コーダー。"],
+["Magistral Small 1","Mistral","Mistral AI","2025-06",23.6,23.6,11,"Apache 2.0","Mistral初のオープン推論モデル。Small 3.1にRLで思考連鎖を付与。"],
+["Mistral Small 3.2","Mistral","Mistral AI","2025-06",24,24,11,"Apache 2.0","公開時AAは「24Bオンデバイスで GPT-4o 級」と評した。"],
+["Magistral Small 1.2","Mistral","Mistral AI","2025-09",24,24,11,"Apache 2.0","マルチモーダル推論を追加。Small 4に統合される前の最終版。"],
+["Ministral 3 3B","Mistral","Mistral AI","2025-12",3,3,7,"Apache 2.0","エッジ向けマルチモーダル。base/instruct/reasoningの3種。"],
+["Ministral 3 8B","Mistral","Mistral AI","2025-12",8,8,9,"Apache 2.0","2024年のMinistral 8Bの研究ライセンスからApache 2.0へ転換。"],
+["Ministral 3 14B","Mistral","Mistral AI","2025-12",14,14,11,"Apache 2.0","14Bで24BのSmall 3.2やMagistral Small 1.2と同等。"],
+["Devstral Small 2","Mistral","Mistral AI","2025-12",24,24,18,"Apache 2.0","SWE-bench Verified 68.0%。123B版と1ポイント差。"],
+["Devstral 2","Mistral","Mistral AI","2025-12",123,123,19,"Modified MIT","SWE-bench Verified 72.2%。Apache 2.0のMistral Vibe CLIと同時公開。"],
+["Mistral Small 4 (Reasoning)","Mistral","Mistral AI","2026-03",119,6.5,20,"Apache 2.0","Magistral（推論）・Pixtral（視覚）・Devstral（コード）を初統合。"],
+["Mistral Medium 3.5","Mistral","Mistral AI","2026-04",128,128,30,"Modified MIT","歴代最高スコアのオープンMistral。SWE-bench Verified 77.6%。Medium階層がAPI専用から公開へ反転。"],
+
+["Grok-1","Grok","xAI（AA表記: SpaceXAI）","2024-03",314,78.5,6,"Apache 2.0","xAI唯一の完全寛容ライセンス。8エキスパート中2活性、8k文脈、baseのみ。"],
+["Grok 2 (Dec '24)","Grok","xAI（AA表記: SpaceXAI）","2024-12",270,115,8,"Grok 2 Community","重みは2025年8月に「Grok 2.5」として約500GBで公開。OSI準拠ではない。"],
+
+["Command-R (Mar '24)","Cohere","Cohere","2024-03",35,35,2,"CC-BY-NC 4.0","Cohere初のオープンウェイトCommand。RAGとツール利用に特化。"],
+["Command-R+ (Apr '24)","Cohere","Cohere","2024-04",104,104,3,"CC-BY-NC 4.0","多言語RAGベンチでGPT-4世代の競合を上回った初のオープンモデル。"],
+["Command A","Cohere","Cohere","2025-03",111,111,7,"CC-BY-NC 4.0","A100/H100が2枚で動く、企業向け運用コストを狙った設計。"],
+["Tiny Aya Global","Cohere","Cohere","2026-02",3.35,3.35,1,"CC-BY-NC 4.0","70言語対応の3B。スマホでもローカル実行可能。"],
+["Command A+","Cohere","Cohere","2026-05",218,25,23,"Apache 2.0","Cohere初の完全Apache 2.0。AA-Omniscience非幻覚率86%で1位。"],
+
+["Llama 3.1 Nemotron Instruct 70B","Nemotron","NVIDIA","2024-10",70,70,8,"Llama 3.1 Community","Llama 3.1のRLHF調整版。公開時Arena HardとAlpacaEvalで首位。"],
+["Llama 3.3 Nemotron Super 49B v1","Nemotron","NVIDIA","2025-03",49,49,8,"NVIDIA Open Model","NASによる蒸留でLlama 3.3 70Bを49Bへ圧縮、単一GPU運用向け。"],
+["Llama 3.1 Nemotron Ultra 253B (Reasoning)","Nemotron","NVIDIA","2025-04",253,253,9,"NVIDIA Open Model","Llama 3.1 405Bから枝刈り。システムプロンプトで推論ON/OFF。"],
+["Llama Nemotron Super 49B v1.5 (Reasoning)","Nemotron","NVIDIA","2025-07",49,49,12,"NVIDIA Open Model","同一49Bで推論モードを大幅強化した更新版。"],
+["Nemotron Nano 9B V2","Nemotron","NVIDIA","2025-08",9,9,7,"NVIDIA Open Model","Mamba-2/Transformerハイブリッド。思考予算を設定可能、131k文脈。"],
+["Nemotron 3 Nano 30B A3B (Reasoning)","Nemotron","NVIDIA","2025-12",31.6,3.6,15,"Nemotron Open Model","Nemotron 3第一弾。LatentMoEを学習データとレシピごと公開。"],
+["Nemotron 3 Nano 4B","Nemotron","NVIDIA","2026-03",3.97,3.97,9,"Nemotron Open Model","Nemotron 3最小。262k文脈、オンデバイスエージェント向け。"],
+["Nemotron 3 Super 120B A12B (Reasoning)","Nemotron","NVIDIA","2026-03",120.6,12.7,26,"Nemotron Open Model","AA Openness Index 83点。NVFP4精度で事前学習、1M文脈。"],
+["Nemotron 3 Ultra 550B A55B (Reasoning)","Nemotron","NVIDIA","2026-06",550,55,38,"OpenMDW","公開時点で米国製オープン最高知能。毎秒400トークン超。"],
+["Nemotron 3.5 Lightning","Nemotron","NVIDIA","2026-08",31.6,3.6,24,"OpenMDW-1.1","gpt-oss-120b級の知能を約1/4の総パラメタで。ピーク約670 tok/s。"],
+
+["MiniMax M1 80k","MiniMax","MiniMax","2025-06",456,45.9,18,"Apache 2.0","初の大規模ハイブリッド注意推論モデル。思考予算80kトークン版。"],
+["MiniMax-M2","MiniMax","MiniMax","2025-10",230,10,29,"Modified MIT","M1の456Bから230B/活性10Bへ大幅縮小しつつ知能は向上。"],
+["MiniMax-M2.1","MiniMax","MiniMax","2025-12",230,10,32,"MIT","M2の商用制限を外し純粋なMITへ。"],
+["MiniMax-M2.5","MiniMax","MiniMax","2026-02",230,10,34,"MIT","同一の230B/10B構成で3世代連続の知能向上。"],
+["MiniMax-M2.7","MiniMax","MiniMax","2026-03",230,10,39,"Non-commercial","API公開の約3週間後に重み公開。ただし非商用ライセンス。"],
+["MiniMax-M3","MiniMax","MiniMax","2026-06",428,23,45,"MiniMax Community","M系列初のマルチモーダル。画像・動画入力と1M文脈。"],
+
+["gpt-oss-20b (high)","gpt-oss","OpenAI","2025-08",21,3.6,15,"Apache 2.0","16GBの民生ハードで動作。MXFP4量子化MoE重みをネイティブ配布。"],
+["gpt-oss-120b (high)","gpt-oss","OpenAI","2025-08",117,5.1,24,"Apache 2.0","GPT-2以来のOpenAI初オープンウェイト。80GB GPU 1枚に収まる。"],
+
+// --- 既存16ファミリーの取りこぼし分 ---
+["Llama 2 Chat 7B","Llama","Meta","2023-07",7,7,4,"Llama 2 Community","Llama 2最小。同世代の13B（3）を上回るという逆転が起きている（ともに推定値）。",true],
+["Llama 2 Chat 13B","Llama","Meta","2023-07",13,13,3,"Llama 2 Community","Mistral 7Bに敗れたことで「小さくても強い」路線を生んだ中間サイズ。",true],
+["Llama 3 Instruct 8B","Llama","Meta","2024-04",8,8,1,"Llama 3 Community","当時のローカル実行の定番。現行指標では1に圧縮される。",true],
+["Llama 3.2 Instruct 1B","Llama","Meta","2024-09",1,1,1,"Llama 3.2 Community","Llama最小。オンデバイス向けで現在は非推奨扱い。",true],
+["Llama 3.2 Instruct 11B Vision","Llama","Meta","2024-09",11,11,3,"Llama 3.2 Community","128k文脈の視覚言語版。AAは「同クラスで最も知能が低く高価」と評している。",true],
+
+["Gemma 3 270M","Gemma","Google","2025-08",0.268,0.268,2,"Gemma Terms","0.268BでAAが採点した最小級モデル。ブラウザ内実行も可能。",true],
+["Gemma 3 1B Instruct","Gemma","Google","2025-03",1,1,1,"Gemma Terms","Gemma 3最小の通常サイズ。テキスト専用。",true],
+["Gemma 3 4B Instruct","Gemma","Google","2025-03",4.3,4.3,1,"Gemma Terms","マルチモーダル・128k文脈のオンデバイス階層。",true],
+["Gemma 3 12B Instruct","Gemma","Google","2025-03",12.2,12.2,6,"Gemma Terms","Gemma 3の中間サイズ。27B版（7）に1ポイント差まで迫る。"],
+["Gemma 3n E2B Instruct","Gemma","Google","2025-06",5.98,2,1,"Gemma Terms","MatFormer構造で活性2B。E4Bの下位構成。",true],
+["DiffusionGemma 26B A4B","Gemma","Google","2026-06",25.2,3.8,13,"Apache 2.0","拡散型言語モデルのGemma。Gemma TermsではなくApache 2.0、260k文脈で動画入力にも対応。",true],
+
+["GLM-4.5V (Non-reasoning)","GLM","Z AI","2025-08",108,12,7,"MIT","GLM初の視覚言語MoE。",true],
+["GLM-4.6V (Non-reasoning)","GLM","Z AI","2025-12",108,12,11,"MIT","4.5Vから+4。同一の108B/12B構成。",true],
+["GLM-5.1 (Reasoning)","GLM","Z AI","2026-04",744,40,41,"MIT","GLM-5と同一構成の中間更新。200k文脈。GLM-5.2に置き換えられた。"],
+
+["DeepSeek-Coder-V2","DeepSeek","DeepSeek","2024-06",236,21,5,"DeepSeek License","V2世代のコード特化MoE。DeepSeekがMoEに舵を切った時期の代表。",true],
+["DeepSeek Coder V2 Lite Instruct","DeepSeek","DeepSeek","2024-06",16,2.4,3,"DeepSeek License","活性2.4Bの軽量コーダー。ローカル実行を狙った初期のMoE。",true],
+["DeepSeek-V2.5","DeepSeek","DeepSeek","2024-09",236,21,6,"DeepSeek License","V2系の汎用旗艦。V3の前身にあたる236B/21B。",true],
+["DeepSeek-V2.5 (Dec '24)","DeepSeek","DeepSeek","2024-12",236,21,7,"DeepSeek License","V2系最終更新。V3公開の直前。",true],
+["DeepSeek R1 Distill Qwen 1.5B","DeepSeek","DeepSeek","2025-01",1.5,1.5,3,"DeepSeek / Apache 2.0","R1の思考をQwen2.5 1.5Bへ蒸留。1.5Bで推論する試みの原点。",true],
+["DeepSeek R1 Distill Llama 8B","DeepSeek","DeepSeek","2025-01",8,8,6,"Llama 3.1 Community","R1蒸留のLlama 8B版。",true],
+["DeepSeek R1 Distill Qwen 14B","DeepSeek","DeepSeek","2025-01",14,14,10,"Apache 2.0","R1蒸留の14B。同サイズのQwen3 14B（10）と同等。",true],
+["DeepSeek R1 Distill Qwen 32B","DeepSeek","DeepSeek","2025-01",32,32,11,"Apache 2.0","R1蒸留系で最高スコア。密32Bで671B級R1の思考を部分的に再現した。",true],
+["DeepSeek R1 Distill Llama 70B","DeepSeek","DeepSeek","2025-01",70,70,10,"Llama 3.3 Community","R1蒸留の最大サイズ。32B版に1ポイント負ける。",true],
+
+["Kimi Linear 48B A3B Instruct","Kimi","Moonshot AI","2025-10",49.1,3,8,"MIT","線形注意の実験系。活性3Bで1M文脈。",true],
+
+["Mistral Small (Sep '24)","Mistral","Mistral AI","2024-09",22,22,4,"Mistral Research","Small階層の初代。研究用ライセンスだった時期。",true],
+["Pixtral Large","Mistral","Mistral AI","2024-11",124,124,8,"Mistral Research（非商用）","Mistral最大の視覚言語モデル。重みは入手可だが非商用。",true],
+["Mistral Large 3","Mistral","Mistral AI","2025-12",675,41,16,"Apache 2.0","Mistral史上最大の675B MoEで、しかもApache 2.0。256k文脈のマルチモーダル。"],
+
+["North Mini Code","Cohere","Cohere","2026-06",30,3,20,"Apache 2.0","Cohere最高スコアのオープンモデル。活性3Bのコーディング特化で256k文脈、ただし27 tok/sと遅い。"],
+
+["Nemotron Cascade 2 30B A3B","Nemotron","NVIDIA","2026-03",31.6,3,18,"NVIDIA Open Model","活性3Bで18。Nemotron 3 Nano系の上位版。",true],
+["Nemotron 3 Nano Omni 30B A3B (Reasoning)","Nemotron","NVIDIA","2026-04",30,3,15,"NVIDIA Open Model","テキスト・画像・音声・動画入力のオムニモーダル。",true],
+["Nemotron Nano 12B v2 VL","Nemotron","NVIDIA","2025-10",13.2,13.2,9,"NVIDIA Open Model","Mamba-2ハイブリッドの視覚言語版。",true],
+
+["MiniMax M1 40k","MiniMax","MiniMax","2025-06",456,45.9,14,"Apache 2.0","M1の思考予算40kトークン版。80k版（18）より4ポイント低い。",true],
+
+// --- 新規ファミリー ---
+["Muse Glimmer (high)","Muse","Meta","2026-08",30,30,35,"Apache 2.0","Meta初のApache 2.0モデル。Llama系列とは別ラインで、Llama 4 Maverick比+21。131k文脈・画像入力。"],
+
+["Granite 4.0 H 350M","Granite","IBM","2025-10",0.34,0.34,1,"Apache 2.0","Mamba-2/Transformerハイブリッド。0.34Bという極小のエッジ向け。",true],
+["Granite 4.0 350M","Granite","IBM","2025-10",0.35,0.35,1,"Apache 2.0","ハイブリッドを使わない純Transformer版。33k文脈でノートPCのCPUでも動く。",true],
+["Granite 4.0 H 1B","Granite","IBM","2025-10",1.5,1.5,2,"Apache 2.0","Nano階層のハイブリッド版。",true],
+["Granite 4.0 1B","Granite","IBM","2025-10",1.6,1.6,2,"Apache 2.0","ブラウザ内実行を謳ったNano階層。",true],
+["Granite 4.0 Micro","Granite","IBM","2025-09",3,3,2,"Apache 2.0","llama.cpp/vLLM互換を優先し、あえてハイブリッドを使わない3B。",true],
+["Granite 3.3 8B (Non-reasoning)","Granite","IBM","2025-04",8.17,8.17,1,"Apache 2.0","Granite 3系で唯一AAに残る行。現在は非推奨。",true],
+["Granite 4.0 H Small","Granite","IBM","2025-09",32,9,5,"Apache 2.0","AA唯一のMoE Granite。Mamba-2:Transformerを9:1で積み、22Tトークン学習。",true],
+["Granite 4.1 3B","Granite","IBM","2026-04",3,3,4,"Apache 2.0","4.1でハイブリッドを捨て密Transformerへ回帰。約15Tトークン学習。",true],
+["Granite 4.1 8B","Granite","IBM","2026-04",8,8,6,"Apache 2.0","「密8Bが前世代の32B MoE旗艦に並ぶ」とされた版。",true],
+["Granite 4.1 30B","Granite","IBM","2026-04",30,30,9,"Apache 2.0","4.1の旗艦。4か月後に自社の8B（20）に抜かれた。",true],
+["Granite 4.2 3B","Granite","IBM","2026-08",3,3,14,"Apache 2.0","推論モデル化した3B。AAの4B以下クラスで2位。"],
+["Granite 4.2 8B","Granite","IBM","2026-08",8,8,20,"Apache 2.0","Granite史上最高。15Tトークン（うち1Tは合成コード）＋ツール利用のエージェントRL。10B未満の密モデルとしては屈指のスコア。"],
+
+["Phi-3 Mini Instruct 3.8B","Phi","Microsoft","2024-04",3.8,3.8,4,"MIT","「小さな高品質データ」路線の起点。文脈は4kのみ。",true],
+["Phi-4","Phi","Microsoft","2024-12",14,14,5,"MIT","合成データ中心の学習で話題を呼んだ密14B。文脈16k。",true],
+["Phi-4 Multimodal Instruct","Phi","Microsoft","2025-02",5.6,5.6,5,"MIT","テキスト・画像・音声入力に対応。",true],
+["Phi-4 Mini Instruct","Phi","Microsoft","2025-02",3.84,3.84,6,"MIT","Phi系最高スコア。128k文脈だが43.5 tok/sと同クラス中央値（190）より大幅に遅い。",true],
+
+["LFM2 8B A1B","LFM","Liquid AI","2025-10",8.34,1.5,1,"LFM Open License 1.0","活性1.5Bの極疎MoE。オンデバイス特化。",true],
+["LFM2 1.2B","LFM","Liquid AI","2025-07",1.17,1.17,1,"LFM Open License 1.0","LFM2系の初期サイズ。",true],
+["LFM2 2.6B","LFM","Liquid AI","2025-09",2.57,2.57,2,"LFM Open License 1.0","LFM2の密2.6B。",true],
+["LFM2.5-1.2B-Instruct","LFM","Liquid AI","2026-01",1.17,1.17,2,"LFM Open License 1.0","1.2B密の指示追従版。",true],
+["LFM2.5-1.2B-Thinking","LFM","Liquid AI","2026-01",1.17,1.17,2,"LFM Open License 1.0","1.2Bに思考モードを付与。",true],
+["LFM2 24B A2B","LFM","Liquid AI","2026-02",23.8,2.3,5,"LFM Open License 1.0","活性2.3Bの中型MoE。商用利用に制限あり。",true],
+["LFM2.5-8B-A1B","LFM","Liquid AI","2026-05",8.3,1.5,8,"LFM Open License 1.0","活性1.5Bで8。文脈は33kと短い。",true],
+["LFM2.5-2.6B","LFM","Liquid AI","2026-08",2.7,2.7,11,"LFM Open License 1.0","AAの4B以下クラス7位。128k文脈で、LFM系で唯一の実測スコア。"],
+
+["Ling-1T","Ling / Ring","InclusionAI (Ant Group)","2025-10",1000,50,13,"MIT","Ant Group初の1TクラスMoE。",true],
+["Ling 2.6 Flash","Ling / Ring","InclusionAI (Ant Group)","2026-04",107,7.4,14,"MIT","活性7.4Bの軽量版。"],
+["Ling-2.6-1T","Ling / Ring","InclusionAI (Ant Group)","2026-04",1000,63,27,"MIT","1T/活性63Bへ更新。",true],
+["Ling 3.0 Tiny","Ling / Ring","InclusionAI (Ant Group)","2026-08",7.9,1.3,25,"MIT","総7.9B・活性1.3Bで25。10B未満のMoEとして極めて高い効率。"],
+["Ring-2.6-1T","Ling / Ring","InclusionAI (Ant Group)","2026-05",1000,63,32,"MIT","Lingの推論強化版（Ring）系列の1T。"],
+["Ling 3.0 Flash","Ling / Ring","InclusionAI (Ant Group)","2026-08",124,5.1,38,"MIT","活性5.1Bで38。総パラメタ124Bに対する活性率4%の超疎構成。"],
+
+["OLMo 2 7B","Olmo","Allen Institute for AI (AI2)","2024-11",7.3,7.3,3,"Apache 2.0","学習データ・コード・重みを全公開する「完全オープン」系列。文脈4.1k。",true],
+["Molmo 7B-D","Olmo","Allen Institute for AI (AI2)","2024-09",8.02,8.02,3,"Apache 2.0","OLMoベースの視覚言語モデル。",true],
+["OLMo 2 32B","Olmo","Allen Institute for AI (AI2)","2025-03",32.2,32.2,5,"Apache 2.0","OLMo 2の最大サイズ。",true],
+["Olmo 3 7B Instruct","Olmo","Allen Institute for AI (AI2)","2025-11",7,7,2,"Apache 2.0","Olmo 3世代の小型。文脈66k。",true],
+["Olmo 3 32B Think","Olmo","Allen Institute for AI (AI2)","2025-11",32.2,32.2,6,"Apache 2.0","思考モード版。完全オープンで推論を狙った初期の試み。",true],
+["Olmo 3.1 32B Instruct","Olmo","Allen Institute for AI (AI2)","2026-01",32.2,32.2,6,"Apache 2.0","3.1世代の指示追従版。",true],
+["Olmo 3.1 32B Think","Olmo","Allen Institute for AI (AI2)","2025-12",32.2,32.2,8,"Apache 2.0","Olmo系最高スコア。データまで含めて全公開されている中では最も賢い。",true],
+
+["Exaone 4.0 1.2B (Non-reasoning)","EXAONE","LG AI Research","2025-07",1.28,1.28,2,"EXAONE License 1.2-NC（非商用）","LGの小型。非商用ライセンス。",true],
+["EXAONE 4.0 32B (Reasoning)","EXAONE","LG AI Research","2025-07",32,32,11,"EXAONE License 1.2-NC（非商用）","密32Bの推論モデル。",true],
+["EXAONE 4.5 33B","EXAONE","LG AI Research","2026-04",34.4,34.4,21,"EXAONE License 1.2-NC（非商用）","4.0比+10。ただし非商用のまま。",true],
+["K-EXAONE (Reasoning)","EXAONE","LG AI Research","2025-12",236,23,22,"K EXAONE License（商用可）","韓国の国家コンソーシアム版。EXAONE本流と違い商用可。",true],
+["K-EXAONE 2.0 0803","EXAONE","LG AI Research","2026-08",750,37,31,"Apache 2.0","LGとしては異例のApache 2.0。262k文脈で出力180Mトークンと冗長。"],
+
+["DeepHermes 3 - Llama-3.1 8B Preview","Hermes","Nous Research","2025-02",8,8,2,"Llama 3.1 Community","Llama 3.1 8Bへ思考連鎖を後付けした派生モデル。",true],
+["DeepHermes 3 - Mistral 24B Preview","Hermes","Nous Research","2025-03",24,24,5,"Apache 2.0","Mistral Small 24Bベースの派生。",true],
+["Hermes 4 - Llama-3.1 405B (Reasoning)","Hermes","Nous Research","2025-08",406,406,9,"Llama 3 Community","Llama 3.1 405Bへの事後学習。ベース（8）を1ポイント上回る。",true],
+["Hermes 4 - Llama-3.1 70B (Reasoning)","Hermes","Nous Research","2025-08",70.6,70.6,10,"Llama 3 Community","70Bで405B版を上回る。コミュニティ側の事後学習が効いた例。",true],
+
+["MiMo-V2-Flash (Feb 2026)","MiMo","Xiaomi","2025-12",309,15,34,"MIT","Xiaomiの旗艦MoE。活性15B。",true],
+["MiMo-V2.5","MiMo","Xiaomi","2026-04",310,15,38,"MIT","同一構成で+4。"],
+["MiMo-V2.5-Pro","MiMo","Xiaomi","2026-04",1000,42,43,"MIT","1T/活性42B、1M文脈、キャッシュ98%割引。MITのまま。"],
+
+["Inkling Small","Inkling","Thinking Machines","2026-07",266,12,41,"Apache 2.0","Thinking Machinesの小型版。活性12Bで旗艦に1ポイント差。"],
+["Inkling (xhigh)","Inkling","Thinking Machines","2026-07",975,41,42,"Apache 2.0","1M文脈で音声・画像入力にも対応。Apache 2.0。"],
+
+["Hy3-preview (Non-reasoning)","Hy","Tencent","2026-04",295,21,27,"Tencent HY Community License","Hunyuan後継ライン「Hy」のプレビュー。",true],
+["Hy3","Hy","Tencent","2026-07",299,21,42,"Apache 2.0","Tencentが独自ライセンスからApache 2.0へ転換。活性21Bで42。"],
+
+["Jamba 1.7 Mini","Jamba","AI21 Labs","2025-07",52,12,2,"Jamba Open Model License","Mamba-Transformerハイブリッドの小型。",true],
+["Jamba Reasoning 3B","Jamba","AI21 Labs","2025-10",3,3,4,"Apache 2.0","3Bで260k文脈。ハイブリッド構造の長文脈効率の実証。",true],
+["Jamba 1.7 Large","Jamba","AI21 Labs","2025-07",398,94,5,"Jamba Open Model License","活性94Bと密度が高い大型ハイブリッド。",true],
+
+["K2-V2 (high)","K2 (MBZUAI)","MBZUAI IFM","2025-12",70,70,14,"Apache 2.0","UAEの完全オープンモデル。512k文脈、effortを3段で公開。",true],
+["K2 Think V2","K2 (MBZUAI)","MBZUAI IFM","2025-12",70,70,17,"Apache 2.0","K2-V2の思考強化版。密70Bで17。",true],
+
+["LongCat Flash Lite","LongCat","Meituan","2026-01",68.5,3,17,"MIT","活性3Bの軽量版。",true],
+["LongCat 2.0","LongCat","Meituan","2026-06",1600,48,34,"MIT","総1.6Tで、AAに載るオープンウェイトの中で総パラメタ最大級。"],
+
+["G9v3-3B","G9v3","AI9Stars","2026-07",3,3,16,"Apache 2.0","AAの4B以下クラス46モデル中1位（同クラス中央値は4）。",true],
+["G9v3-39A5B","G9v3","AI9Stars","2026-08",39,5,34,"Apache 2.0","活性5Bで34。同サイズ帯で突出。"],
+
+["Tri-21B-Think","Tri","Trillion Labs","2026-02",21,21,12,"Apache 2.0","韓国スタートアップの密21B。文脈32kと短い。",true],
+["Tri-21B-think Preview","Tri","Trillion Labs","2026-02",21,21,14,"Apache 2.0","プレビュー版が正式版を上回っている。",true],
+
+["Sarvam 30B (high)","Sarvam","Sarvam AI","2026-03",32.2,2.4,6,"Apache 2.0","インドのソブリンAI。活性率7.4%の超疎MoE。",true],
+["Sarvam 105B (high)","Sarvam","Sarvam AI","2026-03",106,10.3,12,"Apache 2.0","インド言語重視の106B MoE。",true],
+
+["Apriel-v1.6-15B-Thinker","Apriel","ServiceNow","2025-11",15,15,21,"MIT","画像入力に対応した15B。ただし旧版に0.9ポイント負けている。",true],
+["Apriel-v1.5-15B-Thinker","Apriel","ServiceNow","2025-09",15,15,22,"MIT","密15Bで22。企業向けエージェント特化。",true],
+
+["Apertus 8B Instruct","Apertus","Swiss AI Initiative","2025-09",8,8,1,"Apache 2.0","EU/スイスの法令準拠モデル。オプトアウトを尊重したデータのみで学習。",true],
+["Apertus 70B Instruct","Apertus","Swiss AI Initiative","2025-09",70,70,2,"Apache 2.0","70Bで2。データ制約のコストが如実に出た例。",true],
+
+["A.X-K2","A.X","SK Telecom","2026-08",692,33,35,"Apache 2.0","韓国SKテレコムの旗艦。262k文脈で出力180Mトークンと冗長。"],
+["Motif 3","Motif","Motif Technologies","2026-08",314,13.2,47,"Motif License","活性13.2Bで47。評価時の出力260Mトークンは中央値の2.6倍。"],
+["Nex-N2-Pro","Nex","Nex AGI","2026-06",397,17,42,"Apache 2.0","130 tok/sで画像入力にも対応。キャッシュ50%割引。"],
+["Step 3.7 Flash","Step","StepFun","2026-05",198,11,31,"Apache 2.0","活性11Bで31。評価時の出力は中央値の2.6倍。"],
+["Seed-OSS-36B-Instruct","Seed","ByteDance Seed","2025-08",36.2,36.2,19,"Apache 2.0","密36Bで510k文脈という長さが特徴。",true],
+["Trinity Large Thinking","Trinity","Arcee AI","2026-04",399,13,19,"Apache 2.0","512k文脈で167 tok/s。活性13Bの疎構成。"],
+["HyperNova 60B 2605","HyperNova","Multiverse Computing","2026-05",58.7,4.8,18,"Apache 2.0","量子着想の圧縮技術による軽量化。365 tok/s・TTFT 0.81秒。"],
+["HyperCLOVA X SEED Think 32B","HyperCLOVA X","Naver","2025-12",32,32,17,"HyperCLOVA X SEED License（商用に制限）","密32Bで画像・動画入力に対応。",true],
+["INTELLECT-3","INTELLECT","Prime Intellect","2025-11",107,12,16,"MIT","分散RLで学習された107B MoE。",true],
+["Nanbeige4.1-3B","Nanbeige","Nanbeige","2026-02",3.93,3.93,11,"Apache 2.0","密3.93Bで260k文脈。4B以下では最長の文脈長。",true],
+["Falcon-H1R-7B","Falcon","TII (UAE)","2026-01",7,7,10,"Falcon TII License 1.0（商用可）","AAに載る唯一のFalcon。Mambaハイブリッドで256k文脈の推論モデル。",true],
+["ERNIE 4.5 300B A47B","ERNIE","Baidu","2025-06",300,47,9,"Apache 2.0","AAに載る唯一のオープンERNIE。活性47Bと密度が高い。",true],
+["Reka Flash 3","Reka","Reka AI","2025-03",21,21,4,"Apache 2.0","AAは「知能が低く、しかも高価」と評している（$0.20/$0.80 対 中央値$0.05/$0.16）。",true],
+["Arctic Instruct","Arctic","Snowflake","2024-04",480,17,3,"Apache 2.0","2024年の巨大疎MoE。文脈4kという当時の制約が分かる基準点。",true],
+
+["Solar Mini (SOLAR-10.7B)","Upstage","Upstage","2024-01",10.7,10.7,6,"Apache 2.0","Depth-Up-Scaling（層を複製・接合して継続事前学習）の原論文モデル。旧HF Open LLM平均74.20でMixtral-8x7B-Instructを上回った。AA表記は「Solar Mini」。",true],
+["Solar Pro (preview) 22B","Upstage","Upstage","2024-09",22,22,null,"MIT","Phi-3-medium 14BをDUSで22Bへ拡張。文脈4kのみ。以後のSolar ProはAPI専用に転じた。"],
+["Solar Open 100B (Reasoning)","Upstage","Upstage","2025-12",102.6,12,15,"Upstage Solar License","Upstage初のオープンウェイト。19.7Tトークン学習の英韓バイリンガルMoE。AAスコアは推定値。",true],
+["Solar Open2 250B","Upstage","Upstage","2026-07",250,15,37,"Upstage Solar License","ハイブリッド注意MoE（線形注意3層＋softmax注意1層×12周期）でNoPE採用、48層中12層のみKVキャッシュ保持。1M文脈・約12Tトークン。韓国のソブリンAI旗艦。"],
+
+["LLM-jp-13B","llm-jp","NII / LLM-jp","2023-10",13,13,null,"Apache 2.0","500名超の研究者コンソーシアムによる第一弾。約300Bトークンのみで、NII自身が実用向けでないと明言。"],
+["LLM-jp-13B v2.0","llm-jp","NII / LLM-jp","2024-04",13,13,null,"Apache 2.0","学習コーパスとツール群も併せて公開する「完全オープン」路線を確立。"],
+["llm-jp-3 13B instruct","llm-jp","NII / LLM-jp","2024-09",13,13,null,"Apache 2.0","llm-jp-corpus v3で学習。150M〜172Bの8サイズ展開の中核。"],
+["llm-jp-3 172B instruct3","llm-jp","NII / LLM-jp","2024-12",172,172,null,"llm-jp-3-172b-tou（要許諾）","2.1Tトークン学習の密172B。データも重みも公開した「GPT-3級の完全オープンモデル」。文脈は4kのみ。"],
+["llm-jp-3 8x1.8B MoE","llm-jp","NII / LLM-jp","2025-03",9.2,2.9,null,"Apache 2.0","密7.2B相当の性能。MoE系列の小型版。"],
+["llm-jp-3 8x13B MoE","llm-jp","NII / LLM-jp","2025-03",73,22,null,"Apache 2.0","llm-jp-eval と日本語MT-Benchで密172Bを上回り、MoEへの転換点となった。"],
+["llm-jp-3.1 13B instruct4","llm-jp","NII / LLM-jp","2025-05",13,13,null,"Apache 2.0","継続事前学習＋事後学習の改良でQwen2.5-14B-Instructを上回った。"],
+["llm-jp-3.1 8x13B instruct4","llm-jp","NII / LLM-jp","2025-05",73,22,null,"Apache 2.0","日本語MT-Benchで gpt-4-0613 を超えた。32k長文脈版も後続。"],
+["LLM-jp-4 8B","llm-jp","NII / LLM-jp","2026-04",8.6,8.6,null,"Apache 2.0","日本語MT-Bench 7.54 / 英語 7.79 で、いずれもGPT-4o（7.29 / 7.69）を上回る。約65k文脈。"],
+["LLM-jp-4 32B-A3B","llm-jp","NII / LLM-jp","2026-04",32,3.8,null,"Apache 2.0","約19.5Tトークンのコーパスから11.7〜12Tを選抜（3.1の約6倍）。日本語MT-Bench 7.82。Nejumi Leaderboard 4 で 0.6679。"],
+
+["PLaMo-13B","PLaMo","Preferred Networks","2023-09",13,13,null,"Apache 2.0","PFN初のフルスクラッチ日英LLM。子会社Preferred Elements設立と同時に発表。"],
+["PLaMo-100B-Pretrained","PLaMo","Preferred Elements","2024-10",100,100,null,"非商用（研究用）","GENIAC第1期で開発した密100B。事前学習済みベースのみ公開。"],
+["PLaMo 2 1B","PLaMo","Preferred Elements","2025-02",1,1,null,"PLaMo Community License","Samba（Mamba＋スライディング窓注意）ハイブリッドの最小構成。"],
+["PLaMo 2 8B","PLaMo","Preferred Elements","2025-02",9,9,null,"PLaMo Community License","Mamba系選択的SSMとスライディング窓注意のSambaアーキテクチャ。6Tトークン学習のベースモデル。"],
+["PLaMo 2 Translate","PLaMo","Preferred Elements","2025-05",10,10,null,"PLaMo Community License","plamo-2-8bベースの日英翻訳特化。政府の生成AI基盤「Gennai」にも採用。"],
+["PLaMo 2.1 8B CPT","PLaMo","Preferred Elements","2025-11",9,9,null,"PLaMo Community License","31Bから枝刈りして得た9B継続事前学習版。視覚言語版(VL)も2026年4月に公開。"],
+["PLaMo 3 NICT 31B base","PLaMo","Preferred Elements","2025-11",31,31,null,"PLaMo Community License","Mambaから離れ、スライディング窓注意＋全注意のハイブリッドへ転換。NICT共同で3Tトークン学習。"],
+["PLaMo 3 NICT 2604 31B base","PLaMo","Preferred Elements","2026-06",31,31,null,"PLaMo Community License","120Bからの蒸留＋1.5Tトークン。256k文脈まで継続事前学習。"],
+["PLaMo 3 NICT 2604 120B base","PLaMo","Preferred Elements","2026-06",120,120,null,"PLaMo Community License","3Tトークン学習の密120B。pfgen-bench 0.83 / JMMLU 5-shot 0.77 / JHumanEval 0.68。同計算量でQwen3-8B・Gemma 3 27B級。"],
+
+["MiniCPM-2B","MiniCPM","OpenBMB / 面壁智能","2024-02",2.7,2.7,null,"General Model License（商用は書面許諾が必要）","「小さいのにMistral-7B級」で話題を呼んだ端側モデルの原点。WSD（Warmup-Stable-Decay）学習率スケジューラを提案し、Llama2-13B・MPT-30B・Falcon-40Bを上回った。"],
+["MiniCPM-1B","MiniCPM","OpenBMB / 面壁智能","2024-04",1.2,1.2,null,"General Model License","2Bの小型版。同時に128k文脈版とMoE版も公開。"],
+["MiniCPM-MoE-8x2B","MiniCPM","OpenBMB / 面壁智能","2024-04",13.6,4,null,"General Model License","8エキスパート中2活性で「Llama2-34B並み」。※総パラメタはOpenBMB未公表で、広く引用される13.6Bを暫定値として使用（活性4Bは公式値）。"],
+["MiniCPM-S-1B","MiniCPM","OpenBMB / 面壁智能","2024-07",1,1,null,"Apache 2.0＋GML（商用は制限）","ProSparse でFFN活性化スパース性87.89%を達成し、FFNのFLOPsを84%削減。PowerInfer連携。"],
+["MiniCPM3-4B","MiniCPM","OpenBMB / 面壁智能","2024-09",4,4,null,"Apache 2.0（商用は登録制）","Phi-3.5-mini-Instruct と GPT-3.5-Turbo-0125 を上回った密4B。BFCL v2 76.0、32k文脈。"],
+["MiniCPM4-0.5B","MiniCPM","OpenBMB / 面壁智能","2025-06",0.5,0.5,null,"Apache 2.0","1Tトークン学習の最小構成。ternary量子化版 BitCPM4 も同時公開（ビット幅90%削減）。"],
+["MiniCPM4-8B","MiniCPM","OpenBMB / 面壁智能","2025-06",8,8,null,"Apache 2.0","学習可能な疎注意 InfLLM v2 を導入し、128k文脈でも各トークンが全体の5%未満としか関連度計算をしない。8Tトークン学習、Jetson AGX Orin上でQwen3-8B比約7倍のデコード速度。"],
+["MiniCPM4.1-8B","MiniCPM","OpenBMB / 面壁智能","2025-09",8,8,null,"Apache 2.0","思考モードと非思考モードを併せ持つハイブリッド推論。RTX 4090で3倍のデコード高速化、EAGLE3投機デコーディング対応。"],
+["MiniCPM-SALA 9B","MiniCPM","OpenBMB / 面壁智能","2026-02",9,9,null,"Apache 2.0","疎注意(InfLLM-v2) 25%＋線形注意(Lightning Attention) 75%のSALAハイブリッド。RTX 5090 1枚で1M文脈（Qwen3-8BはOOM）、256KでQwen3-8B比3.5倍。"],
+["MiniCPM5-1B (Reasoning)","MiniCPM","OpenBMB / 面壁智能","2026-05",1.08,1.08,12,"Apache 2.0","1B以下のオープン最高知能（AAは公開時「2位に7.4ポイント差」と評価）。深層思考SFT 200B＋ハイブリッド思考SFT 200Bトークン、On-Policy Distillation＋2段RL。AA-Omniscience −1 で幻覚せず「答えない」判断ができる。非推論版も同じ12。※AA推定値、かつ公開時のv4.0では17.9だった。",true],
+["MiniCPM-V 2.6","MiniCPM","OpenBMB / 面壁智能","2024-08",8,8,null,"MiniCPM Model License（商用は登録制）","Qwen2-7B＋SigLip-400Mの視覚言語モデル。OpenCompass 65.2で単一画像タスクのGPT-4o mini・Gemini 1.5 Proを上回ると主張。"],
+["MiniCPM-V 4.0","MiniCPM","OpenBMB / 面壁智能","2025-08",4.1,4.1,null,"Apache 2.0","MiniCPM4-3B＋SigLIP2。iPhone 16 Pro Max上でTTFT 2秒未満・17 tok/s超という端側VLM。OCRBench 894。"],
+["MiniCPM-V 4.5","MiniCPM","OpenBMB / 面壁智能","2025-08",8.7,8.7,null,"Apache 2.0","Qwen3-8Bベース。動画トークンを96倍圧縮し、Video-MMEを0.26時間で処理（従来2.6〜3時間）。OpenCompass 77.0。"],
+["MiniCPM-o 4.5","MiniCPM","OpenBMB / 面壁智能","2026-02",9,9,null,"Apache 2.0","視覚＋音声＋全二重ライブストリーミングのオムニモーダル。OpenCompass 77.6、長文英語TTSのWER 3.37%。"],
+["MiniCPM-V 4.6 1.3B","MiniCPM","OpenBMB / 面壁智能","2026-05",1.3,1.3,4,"Apache 2.0","Qwen3.5-0.8B＋SigLIP2。MMMU-Pro 38%で2B以下の視覚推論最高。知識再現は弱く AA-Omniscience −85。※AAが例外的に視覚モデルにテキスト指数を走らせた事例で、値は推定値。公開時のv4.0では13だった。",true]
+];
+
+// Current comparison set — Artificial Analysis Intelligence Index v4.3.
+// One row per checkpoint (highest current effort where several modes are listed).
+// Fields: [name, family, developer, releaseYM, totalB, activeB, aaIndex, license, note]
+const CURRENT_OPEN_RAW = [
+["GLM-5.3 (max)","GLM","Z AI","2026-09",753,40,45,"モデルカード参照","AA v4.3の現行オープンウェイト首位。1M文脈。"],
+["Kimi K3 (max)","Kimi","Moonshot AI","2026-07",2800,104,44,"Kimi K3 License","総2.8T、活性104Bの大規模MoE。"],
+["GLM 5.3 Flash","GLM","Z AI","2026-09",320,18,42,"モデルカード参照","GLM-5.3の軽量MoE。1M文脈。"],
+["Qwen3.8 2.4T A95B","Qwen","Alibaba","2026-08",2400,95,40,"Qwen3.8 License","総2.4T、活性95B。"],
+["Qwen3.8-Flash-Next","Qwen","Alibaba","2026-09",180,6,40,"モデルカード参照","活性6BでAA 40の高効率MoE。"],
+["DeepSeek V4.1 Flash (max)","DeepSeek","DeepSeek","2026-09",552,16,40,"MIT / モデルカード参照","総552B、活性16B、1M文脈。"],
+["DeepSeek V4 Pro 0813 (max)","DeepSeek","DeepSeek","2026-08",1600,49,36,"MIT","総1.6T、活性49B。"],
+["Motif 3","Motif","Motif Technologies","2026-08",314,13.2,34,"Motif License","総314B、活性13.2B。"],
+["K2 Horizon 375B A23B","K2 Horizon","Institute of Foundation Models","2026-09",375,23,31,"モデルカード参照","524k文脈のMoE。"],
+["MiniMax-M3","MiniMax","MiniMax","2026-06",428,23,30,"MiniMax Community","総428B、活性23B、1M文脈。"],
+
+["Ling-3.0-flash-VL","Ling","InclusionAI","2026-09",124,5.5,25,"モデルカード参照","視覚言語版。総124B、活性5.5B。"],
+["Ling-3.0-flash-Fin","Ling","InclusionAI","2026-09",124,5.1,23,"モデルカード参照","金融特化版。"],
+["Ling 3.0 Flash","Ling","InclusionAI","2026-09",124,5.1,21,"モデルカード参照","汎用版。"],
+["Qwen3.5 122B A10B (Non-reasoning)","Qwen","Alibaba","2026-02",125,10,18,"Apache 2.0","現行AAでは同チェックポイントのreasoning版（16）より高い。"],
+["Mistral Medium 3.5","Mistral","Mistral AI","2026-04",128,128,15,"Apache 2.0 / モデルカード参照","密128B。"],
+["Nemotron 3 Super 120B A12B (Reasoning)","Nemotron","NVIDIA","2026-03",120.6,12.7,14,"NVIDIA Open Model","1M文脈のMoE。"],
+["gpt-oss-120b (high)","gpt-oss","OpenAI","2025-08",117,5.1,12,"Apache 2.0","総117B、活性5.1B。"],
+["HyperNova 60B 2605","HyperNova","Multiverse Computing","2026-05",58.7,4.8,12,"Apache 2.0","gpt-oss-120bを圧縮したMoE。"],
+["K2 Think V2","K2 Horizon","Institute of Foundation Models","2025-12",70,70,11,"Apache 2.0","密70B。"],
+["LongCat Flash Lite","LongCat","Meituan","2026-01",68.5,3,11,"MIT","総68.5B、活性3B。"],
+
+["Qwen3.8 27B (xhigh)","Qwen","Alibaba","2026-08",27,27,34,"Apache 2.0","現行AAのxhigh。密27B。"],
+["K2 Horizon MoVA 36B A4B","K2 Horizon","Institute of Foundation Models","2026-09",36,4,26,"モデルカード参照","総36B、活性4B。"],
+["G9v3-39A5B","G9v3","AI9Stars","2026-08",39,5,22,"Apache 2.0","総39B、活性5B。"],
+["K2 Horizon 7B","K2 Horizon","Institute of Foundation Models","2026-09",7,7,21,"モデルカード参照","密7B、524k文脈。"],
+["Qwen3.6 35B A3B (Reasoning)","Qwen","Alibaba","2026-04",36,3,19,"Apache 2.0","総36B、活性3B。"],
+["Muse Glimmer (high)","Muse","Meta","2026-08",30,30,18,"Apache 2.0","密30B、画像入力対応。"],
+["Gemma 4 26B A4B (Reasoning)","Gemma","Google","2026-04",25.2,3.8,17,"Apache 2.0","総25.2B、活性3.8B。"],
+["Gemma 4 31B (Reasoning)","Gemma","Google","2026-04",30.7,30.7,15,"Apache 2.0","密30.7B。"],
+
+["K2 Horizon 3.7B","K2 Horizon","Institute of Foundation Models","2026-09",3.7,3.7,16,"モデルカード参照","AA v4.3の現行Tiny首位。"],
+["MiniCPM5-2B","MiniCPM","OpenBMB","2026-09",2.6,2.6,13,"Apache 2.0 / モデルカード参照","密2.6B。"],
+["G9v3-3B","G9v3","AI9Stars","2026-07",3,3,11,"Apache 2.0","密3B。"],
+["Granite 4.2 3B","Granite","IBM","2026-08",3,3,9,"Apache 2.0","密3B。"],
+["MiniCPM5-1B (Reasoning)","MiniCPM","OpenBMB","2026-05",1,1,9,"Apache 2.0","現行v4.3では9。"],
+["Nanbeige4.1-3B","Nanbeige","Nanbeige","2026-02",3.9,3.9,8,"Apache 2.0","密3.9B。"],
+["LFM2.5-2.6B","LFM","Liquid AI","2026-01",2.7,2.7,8,"LFM License / モデルカード参照","密2.7B。"],
+["NVIDIA Nemotron 3 Nano 4B","Nemotron","NVIDIA","2026-03",4,4,7,"NVIDIA Open Model","密4B。"],
+["Qwen3.5 2B (Reasoning)","Qwen","Alibaba","2026-03",2.3,2.3,7,"Apache 2.0","現行v4.3のreasoning版。"],
+["Phi-4 Mini Instruct","Phi","Microsoft","2025-02",3.8,3.8,6,"MIT","密3.8B。"],
+
+["LLM-jp-4 8B","llm-jp","NII / LLM-jp","2026-04",8.6,8.6,null,"Apache 2.0","AA v4.3未計測。"],
+["LLM-jp-4 32B-A3B","llm-jp","NII / LLM-jp","2026-04",32,3.8,null,"Apache 2.0","AA v4.3未計測。"],
+["PLaMo 3 NICT 2604 31B base","PLaMo","Preferred Elements","2026-06",31,31,null,"PLaMo Community License","AA v4.3未計測。"],
+["PLaMo 3 NICT 2604 120B base","PLaMo","Preferred Elements","2026-06",120,120,null,"PLaMo Community License","AA v4.3未計測。"]
+];
+
+// Closed / proprietary reference points (parameters undisclosed) — grey reference only
+const CLOSED_RAW = [
+["Claude Opus 5 (max)","Anthropic","2026-07",63],
+["Claude Fable 5","Anthropic","2026-06",62],
+["GPT-5.6 Sol (max)","OpenAI","2026-07",61],
+["Grok 4.6 (high)","xAI / SpaceXAI","2026-08",61],
+["GLM-5.3 (max)","Z AI（重み非公開）","2026-08",60],
+["Qwen3.8 Max","Alibaba","2026-08",58],
+["GPT-5.6 Terra (max)","OpenAI","2026-07",57],
+["Muse Spark 1.2 (xhigh)","Meta","2026-08",57],
+["Gemini 3.7 Flash (high)","Google","2026-08",56],
+["Grok 4.5 (high)","xAI / SpaceXAI","2026-07",56],
+["Claude Sonnet 5 (max)","Anthropic","2026-06",55],
+["GPT-5.6 Luna (max)","OpenAI","2026-07",52],
+["Gemini 3.6 Flash","Google","2026-07",52],
+["Gemini 3.1 Pro Preview","Google","2026-02",48],
+["Qwen3.7 Max","Alibaba","2026-05",47],
+["GPT-5.3 Codex (xhigh)","OpenAI","2026-02",46],
+["Muse Spark","Meta","2026-04",44],
+["Qwen3.6 Max Preview","Alibaba","2026-04",41],
+["Qwen3 Max","Alibaba","2025-09",24],
+["Magistral Medium 1.2","Mistral AI","2025-09",18],
+["Mistral Medium 3.1","Mistral AI","2025-08",15],
+["Devstral Medium","Mistral AI","2025-07",12],
+["Magistral Medium 1","Mistral AI","2025-06",12],
+["Mistral Medium 3","Mistral AI","2025-05",12],
+["Qwen2.5 Max","Alibaba","2025-01",10],
+["Solar Pro 4","Upstage","2026-08",42],
+["Solar Pro 3","Upstage","2026-01",14],
+["Solar Pro 2 (Preview)","Upstage","2025-05",10],
+["Qwen3.6 Plus","Alibaba","2026-04",40],
+["Qwen3.7 Plus","Alibaba","2026-06",39],
+["Qwen3.5 Omni Plus","Alibaba","2026-02",31],
+["Qwen3.5 Omni Flash","Alibaba","2026-02",19]
+];
+
+// Current proprietary reference set — AA Intelligence Index v4.3.
+const CURRENT_CLOSED_RAW = [
+["Claude Fable 5.1 (max with fallback)","Anthropic","2026-09",53],
+["GPT-6 Astra (max)","OpenAI","2026-09",53],
+["Claude Opus 5 (max)","Anthropic","2026-07",51],
+["Muse Spark 1.3 (max)","Meta","2026-09",48],
+["GPT-5.6 Sol (max)","OpenAI","2026-07",47],
+["Qwen3.8 Max (0902)","Alibaba","2026-09",45],
+["Grok 4.6 (high)","SpaceXAI","2026-08",44]
+];
+
+// Nejumi Leaderboard 4 (W&B Japan) — Japanese-language cross-walk.
+// The only public leaderboard scoring llm-jp alongside the current open-weight frontier.
+// [name, developer, score(0-1), kind]  kind: "jp-open" | "open" | "closed"
+const NEJUMI_RAW = [
+["Claude Opus 4.8","Anthropic",0.8523,"closed"],
+["Claude Opus 4.7","Anthropic",0.8509,"closed"],
+["Gemini 3.1 Pro","Google",0.8430,"closed"],
+["GPT-5.5","OpenAI",0.8411,"closed"],
+["GPT-5.4","OpenAI",0.8397,"closed"],
+["Qwen3.5 397B-A17B","Alibaba",0.8191,"open"],
+["Qwen3.5 122B-A10B","Alibaba",0.8094,"open"],
+["Gemma 4 31B","Google",0.8077,"open"],
+["Qwen3.5 27B","Alibaba",0.8049,"open"],
+["DeepSeek V4 Pro","DeepSeek",0.7956,"open"],
+["DeepSeek V3.2 (Reasoning)","DeepSeek",0.7888,"open"],
+["Gemma 4 26B-A4B","Google",0.7872,"open"],
+["Qwen3.5 9B","Alibaba",0.7485,"open"],
+["Qwen3.5 4B","Alibaba",0.7352,"open"],
+["Nemotron Nano 9B v2 Japanese","NVIDIA",0.7111,"open"],
+["gpt-oss-Swallow 120B RL v0.1","東京科学大 Swallow",0.6914,"jp-open"],
+["RakutenAI-3.0","楽天",0.6761,"jp-open"],
+["Gemma 4 E4B","Google",0.6692,"open"],
+["llm-jp-4 32B-A3B thinking","NII / LLM-jp",0.6679,"jp-open"],
+["Gemma 4 E2B","Google",0.6564,"open"],
+["gpt-oss-Swallow 20B RL v0.1","東京科学大 Swallow",0.6424,"jp-open"]
+];
+</script>
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- model construction ---------- */
+  var MONTH0 = 2023 * 12 + 1; // 2023-02 => index 0 handled via monthIdx
+  function monthIdx(ym) {
+    var p = ym.split("-");
+    return (+p[0]) * 12 + (+p[1]) - 1;
+  }
+  function ymLabel(mi) {
+    var y = Math.floor(mi / 12), m = mi % 12 + 1;
+    return y + "年" + m + "月";
+  }
+  function ymShort(mi) {
+    var y = Math.floor(mi / 12), m = mi % 12 + 1;
+    return String(y).slice(2) + "/" + (m < 10 ? "0" + m : m);
+  }
+
+  function estimateVramGB(totalB) {
+    return Math.ceil(totalB * 0.55 + 12);
+  }
+
+  var OPEN = CURRENT_OPEN_RAW.map(function (r, i) {
+    var total = r[4], active = r[5];
+    return {
+      id: "o" + i, name: r[0], family: r[1], dev: r[2], ym: r[3], mi: monthIdx(r[3]),
+      total: total, active: active, geo: Math.sqrt(total * active),
+      vram: estimateVramGB(total),
+      moe: Math.abs(total - active) > 1e-9,
+      idx: r[6], scored: r[6] != null, est: r[9] === true,
+      license: r[7], note: r[8], open: true
+    };
+  });
+  var CLOSED = CURRENT_CLOSED_RAW.map(function (r, i) {
+    return { id: "c" + i, name: r[0], family: "(closed)", dev: r[1], ym: r[2], mi: monthIdx(r[2]),
+             total: null, active: null, geo: null, vram: null, moe: false, idx: r[3], scored: true, est: false,
+             license: "非公開 (API専用)", note: "", open: false };
+  });
+
+  var FAMILIES = [];
+  OPEN.forEach(function (d) { if (FAMILIES.indexOf(d.family) < 0) FAMILIES.push(d.family); });
+  FAMILIES.sort(function (a, b) {
+    return countFam(b) - countFam(a) || a.localeCompare(b);
+  });
+  function countFam(f) { var n = 0; OPEN.forEach(function (d) { if (d.family === f) n++; }); return n; }
+
+  var MI_MIN = Math.min.apply(null, OPEN.concat(CLOSED).map(function (d) { return d.mi; }));
+  var MI_MAX = Math.max.apply(null, OPEN.concat(CLOSED).map(function (d) { return d.mi; }));
+
+  /* Approximate on-prem GPU server purchase bands.
+     4-bit weights + quantization overhead + 12 GB runtime/KV reserve. */
+  var BINS = [
+    { label: "～100万",  detail: "32 GB級GPU ×1",  test: function (gb) { return gb <= 32; },  v: "--p0" },
+    { label: "～300万",  detail: "96 GB級GPU ×1",  test: function (gb) { return gb <= 96; },  v: "--p1" },
+    { label: "～600万",  detail: "96 GB級GPU ×2",  test: function (gb) { return gb <= 192; }, v: "--p2" },
+    { label: "～1,200万",detail: "96 GB級GPU ×4",  test: function (gb) { return gb <= 384; }, v: "--p3" },
+    { label: "～2,500万",detail: "96 GB級GPU ×8",  test: function (gb) { return gb <= 768; }, v: "--p4" },
+    { label: "3,000万超",detail: "複数ノード",      test: function ()   { return true; },      v: "--p5" }
+  ];
+  function binOf(vram) { for (var i = 0; i < BINS.length; i++) if (BINS[i].test(vram)) return i; return BINS.length - 1; }
+  OPEN.forEach(function (d) {
+    d.bin = binOf(d.vram);
+    d.costLabel = BINS[d.bin].label + "円級";
+    d.serverClass = BINS[d.bin].detail;
+  });
+
+  /* ---------- state ---------- */
+  var S = {
+    view: "scatter",
+    xmode: "geomean",
+    log: true,
+    closed: true,
+    pareto: true,
+    lo: MI_MIN, hi: MI_MAX,
+    fams: FAMILIES.slice(),
+    hoverFam: null,
+    sortKey: "idx", sortDir: -1
+  };
+
+  var $ = function (s) { return document.querySelector(s); };
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function el(t, a) {
+    var n = document.createElementNS(SVGNS, t);
+    if (a) for (var k in a) if (a[k] != null) n.setAttribute(k, a[k]);
+    return n;
+  }
+  function cssv(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  /* ---------- filtering ---------- */
+  function visibleOpen() {
+    return OPEN.filter(function (d) {
+      return d.mi >= S.lo && d.mi <= S.hi && S.fams.indexOf(d.family) >= 0;
+    });
+  }
+  function visibleClosed() {
+    if (!S.closed) return [];
+    return CLOSED.filter(function (d) { return d.mi >= S.lo && d.mi <= S.hi; });
+  }
+  function xValue(d) {
+    if (S.xmode === "date") return d.mi;
+    if (S.xmode === "total") return d.total;
+    if (S.xmode === "active") return d.active;
+    return d.geo;
+  }
+  var XLABEL = {
+    geomean: "実効モデルサイズ  √(総パラメタ × 活性パラメタ)  [B]",
+    total: "総パラメタ [B]",
+    active: "活性パラメタ [B]",
+    date: "リリース時期"
+  };
+
+  /* ---------- stat tiles ---------- */
+  function renderStats() {
+    var voAll = visibleOpen();
+    var vo = voAll.filter(function (d) { return d.scored; });
+    var nUnscored = voAll.length - vo.length;
+    var host = $("#stats");
+    host.textContent = "";
+    var bestOpen = vo.reduce(function (a, b) { return !a || b.idx > a.idx ? b : a; }, null);
+    var closedAll = CLOSED.filter(function (d) { return d.mi >= S.lo && d.mi <= S.hi; });
+    var bestClosed = closedAll.reduce(function (a, b) { return !a || b.idx > a.idx ? b : a; }, null);
+    var gap = bestOpen && bestClosed ? (bestClosed.idx - bestOpen.idx) : null;
+    var eff = vo.reduce(function (a, b) {
+      return (!a || (b.idx / Math.log10(b.geo + 10)) > (a.idx / Math.log10(a.geo + 10))) ? b : a;
+    }, null);
+
+    var tiles = [
+      { k: "選択中のオープンモデル", v: String(voAll.length), n: S.fams.length + " / " + FAMILIES.length + " ファミリー" + (nUnscored ? "（うちAA未計測 " + nUnscored + "）" : "") },
+      { k: "オープン最高スコア", v: bestOpen ? String(bestOpen.idx) : "—", n: bestOpen ? bestOpen.name : "該当なし" },
+      { k: "クローズド最高との差", v: gap == null ? "—" : (gap >= 0 ? "-" + gap : "+" + (-gap)) + " pt", n: bestClosed ? bestClosed.name + " = " + bestClosed.idx : "参照なし" },
+      { k: "サイズ効率が最も高い", v: eff ? String(eff.idx) : "—", n: eff ? eff.name + "（" + fmtB(eff.geo) + "）" : "該当なし" }
+    ];
+    tiles.forEach(function (t) {
+      var d = document.createElement("div"); d.className = "tile";
+      var a = document.createElement("div"); a.className = "k"; a.textContent = t.k;
+      var b = document.createElement("div"); b.className = "v"; b.textContent = t.v;
+      var c = document.createElement("div"); c.className = "n"; c.textContent = t.n;
+      d.appendChild(a); d.appendChild(b); d.appendChild(c); host.appendChild(d);
+    });
+  }
+  function fmtB(v) {
+    if (v == null) return "非公開";
+    if (v >= 1000) return (v / 1000).toFixed(v >= 10000 ? 0 : 2).replace(/\.?0+$/, "") + "T";
+    if (v >= 100) return Math.round(v) + "B";
+    if (v >= 10) return (Math.round(v * 10) / 10) + "B";
+    return (Math.round(v * 100) / 100) + "B";
+  }
+
+  /* ---------- chips ---------- */
+  function renderChips() {
+    var host = $("#chips"); host.textContent = "";
+    var all = document.createElement("button");
+    all.type = "button"; all.className = "chip util";
+    all.textContent = S.fams.length === FAMILIES.length ? "すべて解除" : "すべて選択";
+    all.addEventListener("click", function () {
+      S.fams = S.fams.length === FAMILIES.length ? [] : FAMILIES.slice();
+      renderAll();
+    });
+    host.appendChild(all);
+
+    /* With ~50 families the full chip row is five deep, which drowns the chart.
+       Show the biggest families and tuck the long tail behind one toggle. */
+    var SHOWN = 20;
+    var list = (S.chipsOpen || FAMILIES.length <= SHOWN) ? FAMILIES : FAMILIES.slice(0, SHOWN);
+    list.forEach(function (f) {
+      var on = S.fams.indexOf(f) >= 0;
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "chip";
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.appendChild(document.createTextNode(f));
+      var s = document.createElement("span"); s.className = "ct";
+      s.textContent = String(OPEN.filter(function (d) { return d.family === f && d.mi >= S.lo && d.mi <= S.hi; }).length);
+      b.appendChild(s);
+      b.addEventListener("click", function () {
+        var i = S.fams.indexOf(f);
+        if (i >= 0) S.fams.splice(i, 1); else S.fams.push(f);
+        renderAll();
+      });
+      b.addEventListener("mouseenter", function () { S.hoverFam = f; applyHighlight(); });
+      b.addEventListener("mouseleave", function () { S.hoverFam = null; applyHighlight(); });
+      b.addEventListener("focus", function () { S.hoverFam = f; applyHighlight(); });
+      b.addEventListener("blur", function () { S.hoverFam = null; applyHighlight(); });
+      host.appendChild(b);
+    });
+
+    if (FAMILIES.length > SHOWN) {
+      var more = document.createElement("button");
+      more.type = "button"; more.className = "chip util";
+      var hidden = FAMILIES.length - SHOWN;
+      more.textContent = S.chipsOpen ? "小規模ファミリーを畳む" : "＋ 他 " + hidden + " ファミリー";
+      more.addEventListener("click", function () { S.chipsOpen = !S.chipsOpen; renderChips(); });
+      host.appendChild(more);
+      if (!S.chipsOpen) {
+        var offCount = 0;
+        FAMILIES.slice(SHOWN).forEach(function (f) { if (S.fams.indexOf(f) < 0) offCount++; });
+        if (offCount) {
+          var n = document.createElement("span");
+          n.style.cssText = "font-size:11.5px;color:var(--muted)";
+          n.textContent = "（畳んだ中に選択解除中 " + offCount + " 件）";
+          host.appendChild(n);
+        }
+      }
+    }
+  }
+  function applyHighlight() {
+    var nodes = document.querySelectorAll("[data-fam]");
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i], f = n.getAttribute("data-fam");
+      if (!S.hoverFam) { n.style.opacity = ""; n.setAttribute("stroke", n.getAttribute("data-stroke") || "none"); n.setAttribute("stroke-width", n.getAttribute("data-sw") || "0"); }
+      else if (f === S.hoverFam) { n.style.opacity = "1"; n.setAttribute("stroke", cssv("--accent")); n.setAttribute("stroke-width", "2"); }
+      else { n.style.opacity = "0.16"; n.setAttribute("stroke", n.getAttribute("data-stroke") || "none"); n.setAttribute("stroke-width", n.getAttribute("data-sw") || "0"); }
+    }
+  }
+
+  /* ---------- tooltip ---------- */
+  var tip = $("#tip");
+  function showTip(d, cx, cy) {
+    tip.textContent = "";
+    var h = document.createElement("div"); h.className = "tname";
+    var key = document.createElement("span"); key.className = "tkey";
+    key.style.background = d.open ? cssv(BINS[d.bin].v) : cssv("--closed");
+    h.appendChild(key); h.appendChild(document.createTextNode(d.name));
+    tip.appendChild(h);
+
+    var rows = [["Intelligence Index v4.3", d.scored ? (String(d.idx) + (d.est ? "（AA推定値）" : "")) : "AA未計測"]];
+    if (d.open) {
+      rows.push(["実効サイズ √(総×活性)", fmtB(d.geo)]);
+      rows.push(["総 / 活性パラメタ", fmtB(d.total) + " / " + fmtB(d.active)]);
+      rows.push(["推定必要VRAM", d.vram + " GB（4-bit概算）"]);
+      rows.push(["GPUサーバー実機", d.costLabel + " / " + d.serverClass]);
+      rows.push(["構成", d.moe ? "MoE（疎）活性率 " + (100 * d.active / d.total).toFixed(1) + "%" : "Dense（密）"]);
+    } else {
+      rows.push(["パラメタ", "非公開（クローズド）"]);
+    }
+    rows.push(["公開", ymLabel(d.mi)]);
+    rows.push(["開発", d.dev]);
+    rows.push(["ライセンス", d.license]);
+    rows.forEach(function (r) {
+      var w = document.createElement("div"); w.className = "trow";
+      var a = document.createElement("span"); a.className = "tk"; a.textContent = r[0];
+      var b = document.createElement("span"); b.className = "tv"; b.textContent = r[1];
+      w.appendChild(a); w.appendChild(b); tip.appendChild(w);
+    });
+    if (d.note) { var n = document.createElement("div"); n.className = "tnote"; n.textContent = d.note; tip.appendChild(n); }
+
+    tip.classList.add("on");
+    var r = tip.getBoundingClientRect();
+    var x = Math.min(Math.max(cx, r.width / 2 + 8), window.innerWidth - r.width / 2 - 8);
+    var y = cy - 14;
+    if (y - r.height < 8) y = cy + r.height + 24;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  }
+  function hideTip() { tip.classList.remove("on"); }
+
+  /* ---------- scale helpers ----------
+     Domains are computed ONCE from the whole dataset, never from the filtered
+     slice, so moving the release slider or toggling families repositions marks
+     without moving the axes underneath them. */
+  var FULL_DOMAIN = {};
+  ["geomean", "total", "active", "date"].forEach(function (mode) {
+    var prev = S.xmode; S.xmode = mode;
+    var pool = OPEN.concat(mode === "date" ? CLOSED : []);
+    var vals = pool.map(xValue).filter(function (v) { return v != null; });
+    FULL_DOMAIN[mode] = [Math.min.apply(null, vals), Math.max.apply(null, vals)];
+    S.xmode = prev;
+  });
+
+  function mkScaleX(w, padL, padR) {
+    var d = FULL_DOMAIN[S.xmode];
+    var lo = d[0], hi = d[1];
+    if (S.xmode === "date") {
+      lo -= 1; hi += 1;
+      return { kind: "lin", lo: lo, hi: hi, px: function (v) { return padL + (v - lo) / (hi - lo) * (w - padL - padR); } };
+    }
+    if (S.log) {
+      lo = Math.max(0.02, lo * 0.72); hi = hi * 1.4;
+      var l0 = Math.log10(lo), l1 = Math.log10(hi);
+      return { kind: "log", lo: lo, hi: hi, px: function (v) { return padL + (Math.log10(v) - l0) / (l1 - l0) * (w - padL - padR); } };
+    }
+    lo = 0; hi = hi * 1.06;
+    return { kind: "lin", lo: lo, hi: hi, px: function (v) { return padL + (v - lo) / (hi - lo) * (w - padL - padR); } };
+  }
+
+  /* ---------- main scatter ---------- */
+  function renderScatter() {
+    var slot = $("#chartslot"); slot.textContent = "";
+    var vo = visibleOpen(), vc = visibleClosed();
+    if (!vo.length && !vc.length) {
+      var e = document.createElement("div"); e.className = "empty";
+      e.textContent = "条件に一致するモデルがありません。ファミリーまたは期間を広げてください。";
+      slot.appendChild(e); return;
+    }
+
+    var voScored = vo.filter(function (d) { return d.scored; });
+    var voUnscored = vo.filter(function (d) { return !d.scored; });
+
+    var W = Math.max(560, slot.clientWidth || 900);
+    var H = Math.round(Math.min(660, Math.max(460, W * 0.60)));
+    var padL = 58, padT = 18;
+    var BAND = 40;                              /* AA未計測 lane, always reserved */
+    var padB = 52 + BAND;
+    var gutter = (S.xmode !== "date" && S.closed) ? 92 : 0;   /* reserved regardless of filter */
+    var padR = 18 + gutter;
+
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img" });
+    svg.setAttribute("aria-label", "モデルサイズとIntelligence Indexの散布図");
+    slot.appendChild(svg);
+
+    var sx = mkScaleX(W, padL, padR);
+    var yMax = 56, yMin = 0;
+    function py(v) { return padT + (1 - (v - yMin) / (yMax - yMin)) * (H - padT - padB); }
+    var bandY = py(0) + 46;
+    var plotR = W - padR, plotL = padL;
+
+    /* grid + y axis */
+    var g = el("g"); svg.appendChild(g);
+    for (var yv = 0; yv <= 50; yv += 10) {
+      g.appendChild(el("line", { x1: plotL, x2: W - 18, y1: py(yv), y2: py(yv), stroke: cssv("--grid"), "stroke-width": 1 }));
+      var t = el("text", { x: plotL - 10, y: py(yv) + 4, "text-anchor": "end", fill: cssv("--muted"), "font-size": 11, "class": "axtick" });
+      t.textContent = String(yv); g.appendChild(t);
+    }
+    g.appendChild(el("line", { x1: plotL, x2: plotL, y1: padT, y2: py(0), stroke: cssv("--axis"), "stroke-width": 1 }));
+    g.appendChild(el("line", { x1: plotL, x2: W - 18, y1: py(0), y2: py(0), stroke: cssv("--axis"), "stroke-width": 1 }));
+    var ycx = 16, ycy = (padT + py(0)) / 2;
+    var yt = el("text", {
+      x: ycx, y: ycy, "text-anchor": "middle", fill: cssv("--text-secondary"),
+      "font-size": 11.5, "font-weight": 600, transform: "rotate(-90 " + ycx + " " + ycy + ")"
+    });
+    yt.textContent = "AA Intelligence Index v4.3";
+    g.appendChild(yt);
+
+    /* x axis ticks */
+    if (S.xmode === "date") {
+      for (var m = Math.ceil(sx.lo / 3) * 3; m <= sx.hi; m += 3) {
+        var xx = sx.px(m);
+        if (xx < plotL - 1 || xx > plotR + 1) continue;
+        g.appendChild(el("line", { x1: xx, x2: xx, y1: padT, y2: py(0), stroke: cssv("--grid"), "stroke-width": 1 }));
+        var tt = el("text", { x: xx, y: py(0) + 18, "text-anchor": "middle", fill: cssv("--muted"), "font-size": 10.5, "class": "axtick" });
+        tt.textContent = ymShort(m); g.appendChild(tt);
+      }
+    } else if (sx.kind === "log") {
+      var decades = [0.1, 0.3, 1, 3, 10, 30, 100, 300, 1000, 3000];
+      decades.forEach(function (v) {
+        if (v < sx.lo || v > sx.hi) return;
+        var xx = sx.px(v);
+        g.appendChild(el("line", { x1: xx, x2: xx, y1: padT, y2: py(0), stroke: cssv("--grid"), "stroke-width": 1 }));
+        var tt = el("text", { x: xx, y: py(0) + 18, "text-anchor": "middle", fill: cssv("--muted"), "font-size": 10.5, "class": "axtick" });
+        tt.textContent = v >= 1000 ? (v / 1000) + "T" : (v < 1 ? (v * 1000) + "M" : v + "B"); g.appendChild(tt);
+      });
+    } else {
+      for (var i = 0; i <= 5; i++) {
+        var v2 = sx.lo + (sx.hi - sx.lo) * i / 5, xx2 = sx.px(v2);
+        g.appendChild(el("line", { x1: xx2, x2: xx2, y1: padT, y2: py(0), stroke: cssv("--grid"), "stroke-width": 1 }));
+        var t2 = el("text", { x: xx2, y: py(0) + 18, "text-anchor": "middle", fill: cssv("--muted"), "font-size": 10.5, "class": "axtick" });
+        t2.textContent = fmtB(v2); g.appendChild(t2);
+      }
+    }
+    var xt = el("text", { x: (plotL + plotR) / 2, y: H - 6, "text-anchor": "middle", fill: cssv("--text-secondary"), "font-size": 11.5, "font-weight": 600 });
+    xt.textContent = XLABEL[S.xmode]; g.appendChild(xt);
+
+    /* "AA未計測" lane — models whose size is known but which AA has never scored */
+    var bandG = el("g"); svg.appendChild(bandG);
+    bandG.appendChild(el("line", {
+      x1: plotL, x2: W - 18, y1: bandY - 15, y2: bandY - 15,
+      stroke: cssv("--grid"), "stroke-width": 1, "stroke-dasharray": "2 3"
+    }));
+    var bl = el("text", { x: plotL - 10, y: bandY + 4, "text-anchor": "end", fill: cssv("--muted"), "font-size": 10 });
+    bl.textContent = "AA未計測"; bandG.appendChild(bl);
+
+    /* closed reference: dashed frontier line + right gutter strip */
+    var vcAll = CLOSED.filter(function (d) { return d.mi >= S.lo && d.mi <= S.hi; });
+    if (S.closed && vcAll.length) {
+      var top = vcAll.reduce(function (a, b) { return b.idx > a.idx ? b : a; });
+      var ln = el("line", { x1: plotL, x2: W - 18, y1: py(top.idx), y2: py(top.idx), stroke: cssv("--closed"), "stroke-width": 1.5, "stroke-dasharray": "5 4" });
+      svg.appendChild(ln);
+      var lb = el("text", { x: plotL + 6, y: py(top.idx) - 6, fill: cssv("--closed"), "font-size": 10.5 });
+      lb.textContent = "クローズド最高 " + top.idx + "（" + top.name + "）"; svg.appendChild(lb);
+    }
+
+    var pts = [];
+
+    if (S.xmode !== "date" && S.closed && vc.length) {
+      /* gutter separator */
+      svg.appendChild(el("line", { x1: plotR + 10, x2: plotR + 10, y1: padT, y2: py(0), stroke: cssv("--grid"), "stroke-width": 1, "stroke-dasharray": "2 3" }));
+      var gl = el("text", { x: plotR + 12, y: py(0) + 16, fill: cssv("--muted"), "font-size": 10 });
+      gl.textContent = "クローズド"; svg.appendChild(gl);
+      var gl2 = el("text", { x: plotR + 12, y: py(0) + 28, fill: cssv("--muted"), "font-size": 10 });
+      gl2.textContent = "（パラメタ非公開）"; svg.appendChild(gl2);
+      var lanes = [0, 1, 2, 1];
+      vc.slice().sort(function (a, b) { return b.idx - a.idx; }).forEach(function (d, i) {
+        var cx = plotR + 26 + lanes[i % 4] * 17;
+        pts.push({ d: d, x: cx, y: py(d.idx) });
+      });
+    }
+
+    voScored.forEach(function (d) { pts.push({ d: d, x: sx.px(xValue(d)), y: py(d.idx) }); });
+    voUnscored.slice().sort(function (a, b) { return xValue(a) - xValue(b); })
+      .forEach(function (d, i) { pts.push({ d: d, x: sx.px(xValue(d)), y: bandY + (i % 2 ? 9 : -3) }); });
+    if (S.xmode === "date" && S.closed) vc.forEach(function (d) { pts.push({ d: d, x: sx.px(d.mi), y: py(d.idx) }); });
+
+    /* pareto frontier (open only, param axes) */
+    if (S.pareto && S.xmode !== "date" && voScored.length > 1) {
+      /* efficiency frontier: ascending size, keep each new "best so far" —
+         a point is on it when nothing smaller scores higher. */
+      var sorted = voScored.slice().sort(function (a, b) { return xValue(a) - xValue(b) || a.idx - b.idx; });
+      var front = [], best = -1;
+      for (var k = 0; k < sorted.length; k++) {
+        if (sorted[k].idx > best) { best = sorted[k].idx; front.push(sorted[k]); }
+      }
+      if (front.length > 1) {
+        var dstr = "", prev = null;
+        front.forEach(function (f, i) {
+          var X = sx.px(xValue(f)), Y = py(f.idx);
+          if (i === 0) dstr += "M" + X + "," + Y;
+          else { dstr += "L" + X + "," + prev.Y + "L" + X + "," + Y; }
+          prev = { X: X, Y: Y };
+        });
+        svg.appendChild(el("path", { d: dstr, fill: "none", stroke: cssv("--accent"), "stroke-width": 1.5, "stroke-dasharray": "1 3", opacity: 0.75 }));
+      }
+      window.__front = front;
+    } else if (S.pareto && S.xmode === "date" && voScored.length > 1) {
+      var sortedD = voScored.slice().sort(function (a, b) { return a.mi - b.mi; });
+      var fr = [], bb = -1, ds = "", pv = null;
+      sortedD.forEach(function (d) { if (d.idx > bb) { bb = d.idx; fr.push(d); } });
+      fr.forEach(function (f, i) {
+        var X = sx.px(f.mi), Y = py(f.idx);
+        if (i === 0) ds += "M" + X + "," + Y;
+        else { ds += "L" + X + "," + pv.Y + "L" + X + "," + Y; }
+        pv = { X: X, Y: Y };
+      });
+      if (pv) ds += "L" + sx.px(sx.hi - 1) + "," + pv.Y;
+      svg.appendChild(el("path", { d: ds, fill: "none", stroke: cssv("--accent"), "stroke-width": 1.5, "stroke-dasharray": "1 3", opacity: 0.75 }));
+      window.__front = fr;
+    } else { window.__front = []; }
+
+    /* marks — closed first (recessive), then open, low index first */
+    var marks = el("g"); svg.appendChild(marks);
+    pts.sort(function (a, b) { return (a.d.open === b.d.open) ? ((a.d.idx || 0) - (b.d.idx || 0)) : (a.d.open ? 1 : -1); });
+    pts.forEach(function (p) {
+      var d = p.d, node;
+      var fill = d.open ? cssv(BINS[d.bin].v) : "none";
+      if (!d.open) {
+        node = el("circle", { cx: p.x, cy: p.y, r: 4.5, fill: "none", stroke: cssv("--closed"), "stroke-width": 1.5, opacity: 0.85 });
+        node.setAttribute("data-stroke", cssv("--closed")); node.setAttribute("data-sw", "1.5");
+      } else if (!d.scored) {
+        node = el("rect", {
+          x: p.x - 4.4, y: p.y - 4.4, width: 8.8, height: 8.8, rx: 1.4,
+          fill: "none", stroke: fill, "stroke-width": 2, opacity: 0.95,
+          transform: d.moe ? "rotate(45 " + p.x + " " + p.y + ")" : null
+        });
+        node.setAttribute("data-stroke", fill); node.setAttribute("data-sw", "2");
+      } else if (d.moe) {
+        var s = 5.4;
+        node = el("rect", {
+          x: p.x - s, y: p.y - s, width: s * 2, height: s * 2, rx: 1.6,
+          fill: fill, stroke: cssv("--surface-1"), "stroke-width": 1.5,
+          transform: "rotate(45 " + p.x + " " + p.y + ")"
+        });
+        node.setAttribute("data-stroke", cssv("--surface-1")); node.setAttribute("data-sw", "1.5");
+      } else {
+        node = el("circle", { cx: p.x, cy: p.y, r: 5.2, fill: fill, stroke: cssv("--surface-1"), "stroke-width": 1.5 });
+        node.setAttribute("data-stroke", cssv("--surface-1")); node.setAttribute("data-sw", "1.5");
+      }
+      node.setAttribute("data-fam", d.family);
+      node.setAttribute("class", "plot-dot");
+      node.setAttribute("tabindex", "0");
+      node.setAttribute("role", "img");
+      node.setAttribute("aria-label", d.name + "、" + (d.scored ? "指数 " + d.idx : "AA未計測") + "、" + (d.open ? "サイズ " + fmtB(d.geo) : "パラメタ非公開") + "、" + ymLabel(d.mi));
+      node.addEventListener("focus", function () {
+        var r = node.getBoundingClientRect();
+        showTip(d, r.left + r.width / 2, r.top);
+      });
+      node.addEventListener("blur", hideTip);
+      marks.appendChild(node);
+      p.node = node;
+    });
+
+    /* selective direct labels on the frontier */
+    if (S.pareto && window.__front && window.__front.length) {
+      var placed = [];
+      var lg = el("g"); svg.appendChild(lg);
+      window.__front.slice().reverse().slice(0, 14).forEach(function (f) {
+        var X = S.xmode === "date" ? sx.px(f.mi) : sx.px(xValue(f)), Y = py(f.idx);
+        var anchor = X > (plotL + plotR) / 2 ? "end" : "start";
+        var tx = anchor === "end" ? X - 11 : X + 11;
+        var cands = [Y - 9, Y + 17, Y - 22];
+        var ty = null;
+        for (var ci = 0; ci < cands.length; ci++) {
+          var cy2 = cands[ci];
+          if (cy2 < padT + 8 || cy2 > py(0) - 2) continue;
+          if (!placed.some(function (q) { return Math.abs(q.x - tx) < 104 && Math.abs(q.y - cy2) < 13; })) { ty = cy2; break; }
+        }
+        if (ty == null) return;
+        placed.push({ x: tx, y: ty });
+        var t = el("text", { x: tx, y: ty, "text-anchor": anchor, fill: cssv("--text-primary"), "font-size": 10.5, "font-weight": 600 });
+        t.textContent = f.name.replace(/ \((max|high|Reasoning|Non-reasoning)\)$/, "");
+        t.setAttribute("paint-order", "stroke"); t.setAttribute("stroke", cssv("--surface-1")); t.setAttribute("stroke-width", "3");
+        lg.appendChild(t);
+      });
+    }
+
+    /* nearest-point hover layer */
+    var overlay = el("rect", { x: 0, y: 0, width: W, height: H, fill: "transparent" });
+    svg.appendChild(overlay);
+    var lastNode = null;
+    function nearest(ev) {
+      var r = svg.getBoundingClientRect();
+      var scale = W / r.width;
+      var mx = (ev.clientX - r.left) * scale, my = (ev.clientY - r.top) * scale;
+      var best = null, bd = 1e9;
+      pts.forEach(function (p) {
+        var dx = p.x - mx, dy = p.y - my, dd = dx * dx + dy * dy;
+        if (dd < bd) { bd = dd; best = p; }
+      });
+      if (best && bd <= 30 * 30 * scale * scale) return best;
+      return null;
+    }
+    overlay.addEventListener("pointermove", function (ev) {
+      var p = nearest(ev);
+      if (lastNode && (!p || p.node !== lastNode)) { lastNode.setAttribute("stroke-width", lastNode.getAttribute("data-sw")); lastNode = null; }
+      if (!p) { hideTip(); return; }
+      if (p.node !== lastNode) { p.node.setAttribute("stroke-width", "2.5"); lastNode = p.node; }
+      showTip(p.d, ev.clientX, ev.clientY);
+    });
+    overlay.addEventListener("pointerleave", function () {
+      if (lastNode) { lastNode.setAttribute("stroke-width", lastNode.getAttribute("data-sw")); lastNode = null; }
+      hideTip();
+    });
+
+    applyHighlight();
+  }
+
+  /* ---------- facets ---------- */
+  function renderFacets() {
+    var slot = $("#chartslot"); slot.textContent = "";
+    var vo = visibleOpen();
+    var wrap = document.createElement("div"); wrap.className = "facets"; slot.appendChild(wrap);
+    if (!vo.length) {
+      var e = document.createElement("div"); e.className = "empty"; e.textContent = "条件に一致するモデルがありません。";
+      slot.appendChild(e); return;
+    }
+    /* fixed domain — identical to the main scatter, unaffected by filters */
+    var lo = Math.max(0.5, FULL_DOMAIN[S.xmode][0] * 0.72), hi = FULL_DOMAIN[S.xmode][1] * 1.4;
+    var famsShown = FAMILIES.filter(function (f) { return S.fams.indexOf(f) >= 0; });
+
+    famsShown.forEach(function (fam) {
+      var rows = vo.filter(function (d) { return d.family === fam; });
+      var box = document.createElement("div"); box.className = "facet";
+      var h = document.createElement("h4"); h.textContent = fam; box.appendChild(h);
+      var best = rows.filter(function (d) { return d.scored; })
+                     .reduce(function (a, b) { return !a || b.idx > a.idx ? b : a; }, null);
+      var m = document.createElement("p"); m.className = "fm";
+      m.textContent = rows.length + " モデル ・ 最高 " + (best ? best.idx : "AA未計測");
+      box.appendChild(m);
+
+      var w = 236, hh = 162, pl = 26, pb = 32, pt = 8, pr = 8;
+      var svg = el("svg", { viewBox: "0 0 " + w + " " + hh });
+      function fx(v) {
+        if (S.xmode === "date") return pl + (v - MI_MIN) / (MI_MAX - MI_MIN + 2) * (w - pl - pr);
+        if (S.log) return pl + (Math.log10(v) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * (w - pl - pr);
+        return pl + (v / hi) * (w - pl - pr);
+      }
+      function fy(v) { return pt + (1 - v / 56) * (hh - pt - pb); }
+      var fBand = fy(0) + 13;
+      [0, 10, 20, 30, 40, 50].forEach(function (yv) {
+        svg.appendChild(el("line", { x1: pl, x2: w - pr, y1: fy(yv), y2: fy(yv), stroke: cssv("--grid"), "stroke-width": 1 }));
+        var t = el("text", { x: pl - 5, y: fy(yv) + 3.5, "text-anchor": "end", fill: cssv("--muted"), "font-size": 9 });
+        t.textContent = String(yv); svg.appendChild(t);
+      });
+      /* context: all other visible models in recessive grey */
+      vo.forEach(function (d) {
+        if (d.family === fam || !d.scored) return;
+        svg.appendChild(el("circle", { cx: fx(xValue(d)), cy: fy(d.idx), r: 2, fill: cssv("--grid") }));
+      });
+      rows.sort(function (a, b) { return a.mi - b.mi; });
+      var scored = rows.filter(function (d) { return d.scored; });
+      var unscored = rows.filter(function (d) { return !d.scored; });
+      /* trajectory over scored releases only */
+      if (scored.length > 1) {
+        var ds = "";
+        scored.forEach(function (d, i) { ds += (i ? "L" : "M") + fx(xValue(d)) + "," + fy(d.idx); });
+        svg.appendChild(el("path", { d: ds, fill: "none", stroke: cssv("--p2"), "stroke-width": 1, opacity: 0.28 }));
+      }
+      if (unscored.length) {
+        svg.appendChild(el("line", { x1: pl, x2: w - pr, y1: fBand - 7, y2: fBand - 7, stroke: cssv("--grid"), "stroke-width": 1, "stroke-dasharray": "2 3" }));
+        var ub = el("text", { x: pl - 5, y: fBand + 3, "text-anchor": "end", fill: cssv("--muted"), "font-size": 8 });
+        ub.textContent = "未"; svg.appendChild(ub);
+      }
+      unscored.forEach(function (d) {
+        var node = el("rect", { x: fx(xValue(d)) - 3.4, y: fBand - 3.4, width: 6.8, height: 6.8, rx: 1.2, fill: "none", stroke: cssv(BINS[d.bin].v), "stroke-width": 1.6 });
+        node.setAttribute("class", "plot-dot"); node.setAttribute("tabindex", "0");
+        node.setAttribute("aria-label", d.name + "、AA未計測");
+        node.addEventListener("pointerenter", function (ev) { showTip(d, ev.clientX, ev.clientY); });
+        node.addEventListener("pointerleave", hideTip);
+        node.addEventListener("focus", function () { var r = node.getBoundingClientRect(); showTip(d, r.left + r.width / 2, r.top); });
+        node.addEventListener("blur", hideTip);
+        svg.appendChild(node);
+      });
+      scored.forEach(function (d) {
+        var node = el("circle", { cx: fx(xValue(d)), cy: fy(d.idx), r: 4, fill: cssv(BINS[d.bin].v), stroke: cssv("--surface-1"), "stroke-width": 1.2 });
+        node.setAttribute("class", "plot-dot"); node.setAttribute("tabindex", "0");
+        node.setAttribute("aria-label", d.name + "、指数 " + d.idx);
+        node.addEventListener("pointerenter", function (ev) { showTip(d, ev.clientX, ev.clientY); });
+        node.addEventListener("pointerleave", hideTip);
+        node.addEventListener("focus", function () { var r = node.getBoundingClientRect(); showTip(d, r.left + r.width / 2, r.top); });
+        node.addEventListener("blur", hideTip);
+        svg.appendChild(node);
+      });
+      var xl = el("text", { x: (pl + w - pr) / 2, y: hh - 4, "text-anchor": "middle", fill: cssv("--muted"), "font-size": 9 });
+      xl.textContent = S.xmode === "date" ? "2023 → 2026" : "小 → 大（" + (S.log ? "対数" : "線形") + "）";
+      svg.appendChild(xl);
+      box.appendChild(svg);
+      wrap.appendChild(box);
+    });
+  }
+
+  /* ---------- Nejumi Leaderboard 4 companion panel ----------
+     AA has never scored any Japanese-developer model, so llm-jp / PLaMo cannot be
+     placed on the index axis. This is the one public leaderboard that scores
+     llm-jp against the current open-weight frontier on a common scale. */
+  function renderNejumi() {
+    var slot = $("#chartslot"); slot.textContent = "";
+    var rows = NEJUMI_RAW.map(function (r) { return { name: r[0], dev: r[1], v: r[2], kind: r[3] }; })
+                         .sort(function (a, b) { return b.v - a.v; });
+    var W = Math.max(560, slot.clientWidth || 900);
+    var rowH = 22, padT = 26, padL = 230, padR = 56, padB = 34;
+    var H = padT + rows.length * rowH + padB;
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img" });
+    svg.setAttribute("aria-label", "Nejumi Leaderboard 4 のスコア比較");
+    slot.appendChild(svg);
+    var x0 = padL, x1 = W - padR, lo = 0.60, hi = 0.88;
+    function bx(v) { return x0 + (v - lo) / (hi - lo) * (x1 - x0); }
+
+    for (var t = 0.60; t <= 0.881; t += 0.05) {
+      var tv = Math.round(t * 100) / 100;
+      svg.appendChild(el("line", { x1: bx(tv), x2: bx(tv), y1: padT - 8, y2: H - padB + 2, stroke: cssv("--grid"), "stroke-width": 1 }));
+      var tl = el("text", { x: bx(tv), y: H - padB + 16, "text-anchor": "middle", fill: cssv("--muted"), "font-size": 10.5 });
+      tl.textContent = tv.toFixed(2); svg.appendChild(tl);
+    }
+    var ax = el("text", { x: (x0 + x1) / 2, y: H - 4, "text-anchor": "middle", fill: cssv("--text-secondary"), "font-size": 11.5, "font-weight": 600 });
+    ax.textContent = "Nejumi Leaderboard 4 総合スコア（GLP＋ALT、0–1）"; svg.appendChild(ax);
+
+    rows.forEach(function (r, i) {
+      var y = padT + i * rowH, h = 12;
+      var isJp = r.kind === "jp-open";
+      var fill = isJp ? cssv("--accent") : (r.kind === "closed" ? cssv("--closed") : cssv("--p2"));
+      var lab = el("text", { x: x0 - 10, y: y + 10, "text-anchor": "end", fill: isJp ? cssv("--text-primary") : cssv("--text-secondary"), "font-size": 11.5, "font-weight": isJp ? 600 : 400 });
+      lab.textContent = r.name; svg.appendChild(lab);
+      /* dot plot, not bars: the axis starts at 0.60, so length would lie —
+         position carries the value and a recessive leader carries the row. */
+      svg.appendChild(el("line", { x1: x0, x2: bx(r.v) - 7, y1: y + 6, y2: y + 6, stroke: cssv("--grid"), "stroke-width": 1 }));
+      var bar = el("circle", { cx: bx(r.v), cy: y + 6, r: 5, fill: fill, stroke: cssv("--surface-1"), "stroke-width": 1.5, opacity: r.kind === "closed" ? 0.7 : 1 });
+      svg.appendChild(bar);
+      var val = el("text", { x: bx(r.v) + 11, y: y + 10, fill: cssv("--text-primary"), "font-size": 11, "font-weight": 600 });
+      val.textContent = r.v.toFixed(4); svg.appendChild(val);
+      var hit = el("rect", { x: 0, y: y - 5, width: W, height: rowH, fill: "transparent" });
+      hit.setAttribute("tabindex", "0"); hit.setAttribute("class", "plot-dot");
+      hit.setAttribute("aria-label", r.name + "、" + r.dev + "、" + r.v.toFixed(4));
+      function tipFor(cx, cy) {
+        var d = { name: r.name, dev: r.dev, license: "—", ym: null, idx: null, scored: false, open: true, moe: false, geo: null, total: null, active: null, bin: 0, note: "" };
+        tip.textContent = "";
+        var hh = document.createElement("div"); hh.className = "tname";
+        var k = document.createElement("span"); k.className = "tkey"; k.style.background = fill;
+        hh.appendChild(k); hh.appendChild(document.createTextNode(r.name)); tip.appendChild(hh);
+        [["Nejumi 4 スコア", r.v.toFixed(4)], ["開発元", r.dev],
+         ["区分", r.kind === "closed" ? "クローズド" : (isJp ? "日本製オープン" : "海外製オープン")]].forEach(function (q) {
+          var w2 = document.createElement("div"); w2.className = "trow";
+          var a = document.createElement("span"); a.className = "tk"; a.textContent = q[0];
+          var b = document.createElement("span"); b.className = "tv"; b.textContent = q[1];
+          w2.appendChild(a); w2.appendChild(b); tip.appendChild(w2);
+        });
+        tip.classList.add("on");
+        var rc = tip.getBoundingClientRect();
+        tip.style.left = Math.min(Math.max(cx, rc.width / 2 + 8), window.innerWidth - rc.width / 2 - 8) + "px";
+        tip.style.top = (cy - 14) + "px";
+      }
+      hit.addEventListener("pointerenter", function (ev) { bar.setAttribute("r", "7"); tipFor(ev.clientX, ev.clientY); });
+      hit.addEventListener("pointerleave", function () { bar.setAttribute("r", "5"); hideTip(); });
+      hit.addEventListener("focus", function () { var bb = hit.getBoundingClientRect(); tipFor(bb.left + 200, bb.top); });
+      hit.addEventListener("blur", hideTip);
+      svg.appendChild(hit);
+    });
+  }
+
+  /* ---------- legend ---------- */
+  function renderLegend() {
+    var host = $("#legend"); host.textContent = "";
+    if (S.view === "nejumi") {
+      [[cssv("--accent"), "日本製オープン"], [cssv("--p2"), "海外製オープン"], [cssv("--closed"), "クローズド"]].forEach(function (q) {
+        var d = document.createElement("div"); d.className = "lg";
+        var s = document.createElementNS(SVGNS, "svg");
+        s.setAttribute("width", "16"); s.setAttribute("height", "16"); s.setAttribute("viewBox", "0 0 16 16");
+        s.appendChild(el("circle", { cx: 8, cy: 8, r: 5, fill: q[0] }));
+        d.appendChild(s);
+        var t = document.createElement("span"); t.textContent = q[1]; d.appendChild(t);
+        host.appendChild(d);
+      });
+      var nn = document.createElement("div"); nn.className = "lg";
+      nn.style.color = "var(--muted)";
+      nn.textContent = "出典: Nejumi Leaderboard 4 (W&B Japan) — PLaMo は本リーダーボードに未収録";
+      host.appendChild(nn);
+      return;
+    }
+    var g1 = document.createElement("div"); g1.className = "lg";
+    var lab = document.createElement("span"); lab.textContent = "GPUサーバー実機の概算価格"; g1.appendChild(lab);
+    var col = document.createElement("div");
+    var ramp = document.createElement("div"); ramp.className = "ramp";
+    var labs = document.createElement("div"); labs.className = "ramplabels";
+    BINS.forEach(function (b) {
+      var sw = document.createElement("div"); sw.className = "sw"; sw.style.background = cssv(b.v); sw.title = b.detail; ramp.appendChild(sw);
+      var s = document.createElement("span"); s.textContent = b.label; labs.appendChild(s);
+    });
+    col.appendChild(ramp); col.appendChild(labs); g1.appendChild(col); host.appendChild(g1);
+
+    function shapeLg(kind, text) {
+      var d = document.createElement("div"); d.className = "lg";
+      var s = document.createElementNS(SVGNS, "svg");
+      s.setAttribute("width", "16"); s.setAttribute("height", "16"); s.setAttribute("viewBox", "0 0 16 16");
+      s.style.flex = "0 0 auto";
+      if (kind === "dense") s.appendChild(el("circle", { cx: 8, cy: 8, r: 5.2, fill: cssv("--p2") }));
+      if (kind === "moe") s.appendChild(el("rect", { x: 2.6, y: 2.6, width: 10.8, height: 10.8, rx: 1.6, fill: cssv("--p2"), transform: "rotate(45 8 8)" }));
+      if (kind === "closed") s.appendChild(el("circle", { cx: 8, cy: 8, r: 4.5, fill: "none", stroke: cssv("--closed"), "stroke-width": 1.5 }));
+      if (kind === "unscored") s.appendChild(el("rect", { x: 3.6, y: 3.6, width: 8.8, height: 8.8, rx: 1.4, fill: "none", stroke: cssv("--p2"), "stroke-width": 1.8 }));
+      if (kind === "front") { var p = el("path", { d: "M1,12 L6,12 L6,7 L11,7 L11,3 L15,3", fill: "none", stroke: cssv("--accent"), "stroke-width": 1.5, "stroke-dasharray": "1 3" }); s.appendChild(p); }
+      d.appendChild(s);
+      var t = document.createElement("span"); t.textContent = text; d.appendChild(t);
+      return d;
+    }
+    host.appendChild(shapeLg("dense", "Dense（密）"));
+    host.appendChild(shapeLg("moe", "MoE（疎）"));
+    host.appendChild(shapeLg("unscored", "AA未計測（軸下の帯）"));
+    if (S.closed) host.appendChild(shapeLg("closed", "クローズド参照"));
+    if (S.pareto) host.appendChild(shapeLg("front", S.xmode === "date" ? "オープン最高スコアの推移" : "効率フロンティア"));
+  }
+
+  /* ---------- table ---------- */
+  var COLS = [
+    { k: "name", t: "モデル", num: false },
+    { k: "family", t: "ファミリー", num: false },
+    { k: "dev", t: "開発元", num: false },
+    { k: "ym", t: "公開", num: false },
+    { k: "idx", t: "AA Index", num: true },
+    { k: "geo", t: "√(総×活性)", num: true },
+    { k: "total", t: "総パラメタ", num: true },
+    { k: "active", t: "活性", num: true },
+    { k: "vram", t: "必要VRAM概算", num: true },
+    { k: "bin", t: "実機価格帯", num: true },
+    { k: "license", t: "ライセンス", num: false }
+  ];
+  function renderTable() {
+    var thead = $("#tbl thead"), tbody = $("#tbl tbody");
+    thead.textContent = ""; tbody.textContent = "";
+    var tr = document.createElement("tr");
+    COLS.forEach(function (c) {
+      var th = document.createElement("th");
+      if (c.num) th.className = "num";
+      th.textContent = c.t + (S.sortKey === c.k ? (S.sortDir > 0 ? " ▲" : " ▼") : "");
+      th.addEventListener("click", function () {
+        if (S.sortKey === c.k) S.sortDir *= -1; else { S.sortKey = c.k; S.sortDir = c.num ? -1 : 1; }
+        renderTable();
+      });
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+
+    var rows = visibleOpen().concat(S.closed ? visibleClosed() : []);
+    rows.sort(function (a, b) {
+      var x = a[S.sortKey], y = b[S.sortKey];
+      if (x == null) x = -1; if (y == null) y = -1;
+      if (typeof x === "string") return S.sortDir * x.localeCompare(y);
+      return S.sortDir * (x - y);
+    });
+    rows.forEach(function (d) {
+      var r = document.createElement("tr");
+      COLS.forEach(function (c) {
+        var td = document.createElement("td");
+        if (c.num) td.className = "num";
+        var v = d[c.k];
+        if (c.k === "name") {
+          td.appendChild(document.createTextNode(d.name + " "));
+          var b = document.createElement("span"); b.className = "moe";
+          b.textContent = d.open ? (d.moe ? "MoE" : "Dense") : "Closed";
+          td.appendChild(b);
+          if (!d.scored) {
+            var u = document.createElement("span"); u.className = "moe"; u.textContent = "AA未計測";
+            td.appendChild(document.createTextNode(" ")); td.appendChild(u);
+          } else if (d.est) {
+            var e2 = document.createElement("span"); e2.className = "moe"; e2.textContent = "AA推定";
+            td.appendChild(document.createTextNode(" ")); td.appendChild(e2);
+          }
+        } else if (c.k === "idx") {
+          td.textContent = d.scored ? String(d.idx) : "—";
+        } else if (c.k === "geo" || c.k === "total" || c.k === "active") {
+          td.textContent = v == null ? "—" : fmtB(v);
+        } else if (c.k === "vram") {
+          td.textContent = v == null ? "—" : Math.round(v) + " GB";
+        } else if (c.k === "bin") {
+          td.textContent = d.open ? d.costLabel : "—";
+        } else {
+          td.textContent = v == null ? "—" : String(v);
+        }
+        r.appendChild(td);
+      });
+      tbody.appendChild(r);
+    });
+  }
+
+  /* ---------- range slider ---------- */
+  var rmin = $("#rmin"), rmax = $("#rmax");
+  rmin.min = rmax.min = MI_MIN; rmin.max = rmax.max = MI_MAX;
+  rmin.step = rmax.step = 1;
+  rmin.value = MI_MIN; rmax.value = MI_MAX;
+  function syncRange() {
+    var a = +rmin.value, b = +rmax.value;
+    if (a > b) { if (document.activeElement === rmin) { b = a; rmax.value = b; } else { a = b; rmin.value = a; } }
+    S.lo = a; S.hi = b;
+    $("#rangeval").textContent = ymLabel(a) + " 〜 " + ymLabel(b);
+    var span = MI_MAX - MI_MIN;
+    var sel = $("#selbar");
+    sel.style.left = ((a - MI_MIN) / span * 100) + "%";
+    sel.style.width = ((b - a) / span * 100) + "%";
+  }
+  [rmin, rmax].forEach(function (n) {
+    n.addEventListener("input", function () { syncRange(); renderAll(); });
+  });
+  document.querySelectorAll(".presets button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var p = b.getAttribute("data-preset");
+      var lo = MI_MIN;
+      if (p === "24") lo = monthIdx("2024-01");
+      if (p === "25") lo = monthIdx("2025-01");
+      if (p === "26") lo = monthIdx("2026-01");
+      if (p === "26h2") lo = MI_MAX - 5;
+      rmin.value = lo; rmax.value = MI_MAX;
+      syncRange(); renderAll();
+    });
+  });
+
+  /* ---------- wiring ---------- */
+  $("#xmode").addEventListener("change", function () { S.xmode = this.value; renderAll(); });
+  $("#optClosed").addEventListener("change", function () { S.closed = this.checked; renderAll(); });
+  $("#optPareto").addEventListener("change", function () { S.pareto = this.checked; renderAll(); });
+  $("#optLog").addEventListener("change", function () { S.log = this.checked; renderAll(); });
+  document.querySelectorAll('.segs button[data-view]').forEach(function (b) {
+    b.addEventListener("click", function () {
+      S.view = b.getAttribute("data-view");
+      document.querySelectorAll('.segs button[data-view]').forEach(function (o) {
+        o.setAttribute("aria-pressed", o === b ? "true" : "false");
+      });
+      renderAll();
+    });
+  });
+  $("#themebtn").addEventListener("click", function () {
+    var dark = document.documentElement.getAttribute("data-theme") === "dark";
+    document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+    this.textContent = dark ? "ダークモード" : "ライトモード";
+    renderAll();
+  });
+  if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+    document.documentElement.setAttribute("data-theme", "dark");
+    $("#themebtn").textContent = "ライトモード";
+  }
+
+  var rt;
+  window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { renderChart(); }, 120); });
+
+  function renderChart() {
+    if (S.view === "facets") renderFacets();
+    else if (S.view === "nejumi") renderNejumi();
+    else if (S.view === "scatter") renderScatter();
+  }
+  function renderAll() {
+    $("#chartcard").style.display = S.view === "table" ? "none" : "";
+    $("#tablecard").style.display = S.view === "table" ? "" : "none";
+    $("#charttitle").textContent = S.view === "facets"
+      ? "ファミリー別の軌跡（灰の点は他ファミリー）"
+      : S.view === "nejumi"
+        ? "日本語ベンチでの位置づけ（Nejumi Leaderboard 4）"
+        : (S.xmode === "date" ? "リリース時期 × 知能指標" : "モデルサイズ × 知能指標");
+    $("#chartnote").textContent = S.view === "facets"
+      ? "各パネル内の線は公開順のつながり。縦軸は共通スケール（0–56）。"
+      : S.view === "nejumi"
+        ? "AAが日本製モデルを一切収録していないため、llm-jp を現行フロンティアと同一軸で比較できる唯一の公開指標。上部フィルタは適用されません。"
+        : "色は4-bit量子化時の必要VRAMから見積もったGPUサーバー実機価格。点にカーソルを合わせる（またはTabでフォーカス）と構成と概算が出ます。縦軸は AA Intelligence Index v4.3。";
+    renderStats(); renderChips(); renderChart(); renderLegend(); renderTable();
+    $("#live").textContent = visibleOpen().length + " 件のオープンモデルを表示中";
+  }
+
+  $("#nmodels").textContent = OPEN.length;
+  $("#nfams").textContent = FAMILIES.length;
+  $("#nunscored").textContent = OPEN.filter(function (d) { return !d.scored; }).length;
+  syncRange();
+  renderAll();
+})();
+</script>
+</body>
+</html>
